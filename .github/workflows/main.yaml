@@ -1,0 +1,40 @@
+name: Mirror GitHub Repo to Azure DevOps
+
+on:
+  push:
+    branches:
+      - "**"
+
+jobs:
+  sync_to_ado:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetches all history and branches
+
+      - name: Mirror GitHub to Azure DevOps
+        env:
+          PAT_GT: ${{ secrets.PAT_GT }}
+          ADO_PAT: ${{ secrets.ADO_PAT }}
+        run: |
+          # Clone the repository as a bare repo
+          git clone --bare https://$PAT_GT@github.com/tigerrepository/deepthought-ai-for-insights-api.git
+          cd deepthought-ai-for-insights-api.git
+
+          # Add Azure DevOps as a new remote (fix authentication format)
+          git remote add azure https://anystring:$ADO_PAT@dev.azure.com/deepthought01/deepthought/_git/deepthought-ai-for-insights-api
+          
+          # Fetch latest changes from Azure DevOps to avoid conflicts
+          git fetch azure --prune
+
+          # Merge Azure DevOps changes with GitHub changes
+          for branch in $(git branch -r | grep 'origin/' | sed 's/origin\///'); do
+            git checkout -B $branch origin/$branch || true
+            git merge --no-edit azure/$branch || true
+            git push azure $branch
+          done
+
+          # Push all merged branches and tags to Azure DevOps
+          git push --prune azure "+refs/heads/*:refs/heads/*" "+refs/tags/*:refs/tags/*"

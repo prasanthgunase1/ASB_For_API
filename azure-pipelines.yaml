@@ -1,0 +1,123 @@
+trigger: none
+pool:
+  vmImage: 'ubuntu-latest'
+
+resources:
+  - repo: self
+
+parameters:
+  - name: executionMode
+    displayName: 'Select Execution Mode'
+    type: string
+    default: 'BuildOnly'
+    values:
+      - BuildOnly
+      - BuildAndDeploy
+
+variables:
+  ${{ if ne(variables['Build.SourceBranchName'], 'main') }}:
+    ACR_SERVICE_CONNECTION: 'docker-dev-sp'
+    AKS_SOURCE_BRANCH: 'dev'
+
+  ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
+    ACR_SERVICE_CONNECTION: 'docker-deepthought-sp'
+    AKS_SOURCE_BRANCH: 'main'
+
+  executionMode: ${{ parameters.executionMode }}
+  DOCKER_IMAGE-main: "chat-insights-node-api"
+  DOCKER_IMAGE-worker: "chat-insights-node-worker"
+  BRANCH_NAME: ${{ replace(variables['Build.SourceBranch'], 'refs/heads/', '') }}
+
+stages:
+  - stage: Build
+    displayName: 'Build - ${{ variables.BRANCH_NAME }}'
+    condition: or(eq(variables['executionMode'], 'BuildOnly'), eq(variables['executionMode'], 'BuildAndDeploy'))
+    jobs:
+      - job: Build
+        displayName: 'Build and Push for - ${{ variables.BRANCH_NAME }}'
+        steps:
+          - script: echo "Branch Name is $(Build.SourceBranchName)"
+            displayName: 'Check Branch Name'
+
+          - task: Docker@2
+            displayName: 'Login to Container Registry'
+            inputs:
+              command: 'login'
+              containerRegistry: $(ACR_SERVICE_CONNECTION)
+
+          - task: Docker@2
+            displayName: 'Build Docker Image'
+            inputs:
+              command: 'build'
+              Dockerfile: '$(Build.SourcesDirectory)/Dockerfile'
+              buildContext: '$(Build.SourcesDirectory)'                
+              tags: |
+                $(Build.BuildId)
+              repository: '$(DOCKER_IMAGE-main)'
+
+          - task: Docker@2
+            displayName: 'Push Docker Image'
+            inputs:
+              command: 'push'
+              containerRegistry: '$(ACR_SERVICE_CONNECTION)'
+              repository: '$(DOCKER_IMAGE-main)'
+              tags: |
+                $(Build.BuildId)
+          - task: Docker@2
+            displayName: 'Build Docker Image'
+            inputs:
+              command: 'build'
+              Dockerfile: '$(Build.SourcesDirectory)/Dockerfile.worker'
+              buildContext: '$(Build.SourcesDirectory)'
+              tags: |
+                $(Build.BuildId)
+              repository: '$(DOCKER_IMAGE-worker)'
+
+          - task: Docker@2
+            displayName: 'Push Docker Image'
+            inputs:
+              command: 'push'
+              containerRegistry: '$(ACR_SERVICE_CONNECTION)'
+              repository: '$(DOCKER_IMAGE-worker)'
+              tags: |
+                $(Build.BuildId)
+  - stage: UpdateManifest
+    displayName: "Update Manifest in Aks_source Repo"
+    variables:
+      - group: ado_vars
+    jobs:
+     - job: UpdateManifest
+       displayName: "Update Kubernetes Manifest"
+       steps:
+    
+       - script: | 
+          echo "Setting up Git authentication..."
+          git config --global user.email "devops-bot@tigeranalytics.com"
+          git config --global user.name "ADO Pipeline"
+         displayName: "Configure Git Credentials"
+    
+       - script: |
+          echo "Cloning Aks_source repo (branch: $(AKS_SOURCE_BRANCH)..."
+          git clone --branch "$(AKS_SOURCE_BRANCH)" https://deepthought01:$(PAT_TOKEN)@dev.azure.com/deepthought01/deepthought/_git/Aks_source aks_source_repo
+         displayName: "Clone Aks_source Repo"
+         env:
+          PAT_TOKEN: $(PAT_TOKEN)
+    
+       - script: |
+          echo "Updating manifest with new image tag: $(Build.BuildId)"
+          sed -i "s|azurecr.io/chat-insights-node-api:[^ ]*|azurecr.io/chat-insights-node-api:$(Build.BuildId)|g" aks_source_repo/Manifest_Senseainode/manifest_senseainode.yaml
+          sed -i "s|azurecr.io/chat-insights-node-worker:[^ ]*|azurecr.io/chat-insights-node-worker:$(Build.BuildId)|g" aks_source_repo/Manifest_Senseainode/manifest_senseainode.yaml
+         displayName: "Update Manifest File"  
+       - script: |
+          cd aks_source_repo
+          git remote set-url origin https://deepthought01:$(PAT_TOKEN)@dev.azure.com/deepthought01/deepthought/_git/Aks_source
+          git add Manifest_Senseainode/manifest_senseainode.yaml
+          git commit -m "Updated manifest with image tag $(Build.BuildId)"
+          git push origin HEAD:$(AKS_SOURCE_BRANCH)
+         displayName: "Commit & Push Updated Manifest"
+         env:
+          PAT_TOKEN: $(PAT_TOKEN)
+          
+           
+           
+         
