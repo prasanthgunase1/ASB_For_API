@@ -1,88 +1,88 @@
-variables:
-  ACR_NAME: devdtsearchacr
-  DOCKER_IMAGE_MAIN: chat-insights-node-api
-  DOCKER_IMAGE_WORKER: chat-insights-node-worker
+# variables:
+#   ACR_NAME: devdtsearchacr
+#   DOCKER_IMAGE_MAIN: chat-insights-node-api
+#   DOCKER_IMAGE_WORKER: chat-insights-node-worker
 
-stages:
-  - prepare
-  - build
-  - deploy
+# stages:
+#   - prepare
+#   - build
+#   - deploy
 
-prepare:
-  stage: prepare
-  rules:
-    - if: '$RUN_GITLAB_PIPELINE == "true"'
-      when: always
-    - when: never
-  image: mcr.microsoft.com/azure-cli:latest
-  script:
-    - echo "Logging into Azure..."
-    - az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
-    - ACR_TOKEN=$(az acr login --name "$ACR_NAME" --expose-token --output tsv --query accessToken)
-    - echo $ACR_TOKEN > acr_token.txt
-  artifacts:
-    paths:
-      - acr_token.txt
+# prepare:
+#   stage: prepare
+#   rules:
+#     - if: '$RUN_GITLAB_PIPELINE == "true"'
+#       when: always
+#     - when: never
+#   image: mcr.microsoft.com/azure-cli:latest
+#   script:
+#     - echo "Logging into Azure..."
+#     - az login --service-principal -u "$AZURE_CLIENT_ID" -p "$AZURE_CLIENT_SECRET" --tenant "$AZURE_TENANT_ID"
+#     - ACR_TOKEN=$(az acr login --name "$ACR_NAME" --expose-token --output tsv --query accessToken)
+#     - echo $ACR_TOKEN > acr_token.txt
+#   artifacts:
+#     paths:
+#       - acr_token.txt
 
-build:
-  stage: build
-  needs: [prepare]
-  image:
-    name: gcr.io/kaniko-project/executor:v1.9.0-debug
-    entrypoint: [""]
-  dependencies:
-    - prepare
-  before_script:
-    - mkdir -p /kaniko/.docker
-    - AUTH_STRING=$(echo -n "00000000-0000-0000-0000-000000000000:$(cat acr_token.txt)" | base64 -w 0)
-    - echo "{\"auths\":{\"$ACR_NAME.azurecr.io\":{\"auth\":\"$AUTH_STRING\"}}}" > /kaniko/.docker/config.json
-  script:
-    - >
-      /kaniko/executor
-      --context $CI_PROJECT_DIR
-      --dockerfile $CI_PROJECT_DIR/Dockerfile
-      --destination $ACR_NAME.azurecr.io/$DOCKER_IMAGE_MAIN:$CI_PIPELINE_ID
-      --cache=false
-      --verbosity=info
-    - >
-      /kaniko/executor
-      --context $CI_PROJECT_DIR
-      --dockerfile $CI_PROJECT_DIR/Dockerfile.worker
-      --destination $ACR_NAME.azurecr.io/$DOCKER_IMAGE_WORKER:$CI_PIPELINE_ID
-      --build-arg BUILD_ID=$CI_PIPELINE_ID
-      --cache=false
-      --verbosity=info
-deploy:
-  stage: deploy
-  needs: [build]
-  rules:
-    - if: '$RUN_GITLAB_PIPELINE == "true"'
-      when: always
-    - when: never
-  image: alpine/git
-  variables:
-    GIT_STRATEGY: none
-  script:
-    - echo "Setting up Git authentication..."
-    - git config --global user.email "ci-bot@gitlab.com"
-    - git config --global user.name "GitLab CI"
+# build:
+#   stage: build
+#   needs: [prepare]
+#   image:
+#     name: gcr.io/kaniko-project/executor:v1.9.0-debug
+#     entrypoint: [""]
+#   dependencies:
+#     - prepare
+#   before_script:
+#     - mkdir -p /kaniko/.docker
+#     - AUTH_STRING=$(echo -n "00000000-0000-0000-0000-000000000000:$(cat acr_token.txt)" | base64 -w 0)
+#     - echo "{\"auths\":{\"$ACR_NAME.azurecr.io\":{\"auth\":\"$AUTH_STRING\"}}}" > /kaniko/.docker/config.json
+#   script:
+#     - >
+#       /kaniko/executor
+#       --context $CI_PROJECT_DIR
+#       --dockerfile $CI_PROJECT_DIR/Dockerfile
+#       --destination $ACR_NAME.azurecr.io/$DOCKER_IMAGE_MAIN:$CI_PIPELINE_ID
+#       --cache=false
+#       --verbosity=info
+#     - >
+#       /kaniko/executor
+#       --context $CI_PROJECT_DIR
+#       --dockerfile $CI_PROJECT_DIR/Dockerfile.worker
+#       --destination $ACR_NAME.azurecr.io/$DOCKER_IMAGE_WORKER:$CI_PIPELINE_ID
+#       --build-arg BUILD_ID=$CI_PIPELINE_ID
+#       --cache=false
+#       --verbosity=info
+# deploy:
+#   stage: deploy
+#   needs: [build]
+#   rules:
+#     - if: '$RUN_GITLAB_PIPELINE == "true"'
+#       when: always
+#     - when: never
+#   image: alpine/git
+#   variables:
+#     GIT_STRATEGY: none
+#   script:
+#     - echo "Setting up Git authentication..."
+#     - git config --global user.email "ci-bot@gitlab.com"
+#     - git config --global user.name "GitLab CI"
 
-    # Set AKS_SOURCE_BRANCH based on current branch
-    - |
-      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
-        export AKS_SOURCE_BRANCH=main
-      else
-        export AKS_SOURCE_BRANCH=dev
-      fi
-      echo "Using AKS_SOURCE_BRANCH=$AKS_SOURCE_BRANCH"
+#     # Set AKS_SOURCE_BRANCH based on current branch
+#     - |
+#       if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+#         export AKS_SOURCE_BRANCH=main
+#       else
+#         export AKS_SOURCE_BRANCH=dev
+#       fi
+#       echo "Using AKS_SOURCE_BRANCH=$AKS_SOURCE_BRANCH"
 
-    - echo "Cloning Aks_source repo..."
-    - git clone --branch "$AKS_SOURCE_BRANCH" https://ci-deploy:$GITLAB_DEPLOY_TOKEN@git.tigeranalytics.com/tiger-internal/deepthought/Aks_source.git aks_source_repo
+#     - echo "Cloning Aks_source repo..."
+#     - git clone --branch "$AKS_SOURCE_BRANCH" https://ci-deploy:$GITLAB_DEPLOY_TOKEN@git.tigeranalytics.com/tiger-internal/deepthought/Aks_source.git aks_source_repo
 
-    - echo "Updating manifest with image tag $CI_PIPELINE_ID..."
-    - sed -i "s|azurecr.io/chat-insights-node-api:[^ ]*|azurecr.io/chat-insights-node-api:$CI_PIPELINE_ID|g" aks_source_repo/Manifest_Senseainode/manifest_senseainode.yaml
-    - sed -i "s|azurecr.io/chat-insights-node-worker:[^ ]*|azurecr.io/chat-insights-node-worker:$CI_PIPELINE_ID|g" aks_source_repo/Manifest_Senseainode/manifest_senseainode.yaml
-    - cd aks_source_repo
-    - git add Manifest_Senseainode/manifest_senseainode.yaml
-    - git commit -m "Updated manifest with image tag $CI_PIPELINE_ID"
-    - git push origin HEAD:$AKS_SOURCE_BRANCH
+#     - echo "Updating manifest with image tag $CI_PIPELINE_ID..."
+#     - sed -i "s|azurecr.io/chat-insights-node-api:[^ ]*|azurecr.io/chat-insights-node-api:$CI_PIPELINE_ID|g" aks_source_repo/Manifest_Senseainode/manifest_senseainode.yaml
+#     - sed -i "s|azurecr.io/chat-insights-node-worker:[^ ]*|azurecr.io/chat-insights-node-worker:$CI_PIPELINE_ID|g" aks_source_repo/Manifest_Senseainode/manifest_senseainode.yaml
+#     - cd aks_source_repo
+#     - git add Manifest_Senseainode/manifest_senseainode.yaml
+#     - git commit -m "Updated manifest with image tag $CI_PIPELINE_ID"
+#     - git push origin HEAD:$AKS_SOURCE_BRANCH
