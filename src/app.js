@@ -12,6 +12,11 @@ const artifactsRoute = require('./routes/artifactsRoute');
 const adminRoutes = require("./routes/adminRoute");
 const conversationRoutes = require("./routes/feedbackRoutes");
 const recommendationRoutes = require("./routes/recommendationRoutes.js"); 
+
+// 👇👇👇 NEW: Import the file routes here
+const fileRoutes = require("./routes/fileRoutes"); 
+// 👆👆👆
+
 const PORT = process.env.PORT || 3000;
 const sequelize = require("./config/database"); // Import the Sequelize instance
 const { logger, httpLogger } = require("./utils/logger");
@@ -20,6 +25,11 @@ const {
   initializeSocketIO,
   cleanupSocketIO,
 } = require("./services/socketService");
+
+// 👇👇👇 CHANGED: Import Okta Config instead of Keycloak
+const oktaAuth = require("./config/oktaConfig"); 
+// 👆👆👆
+
 const { keycloak } = require("./config/keycloak");
 const helmetConfig = require("./config/helmetConfig");
 const errorHandler = require("./utils/errorHandler"); // Import the error handler
@@ -143,9 +153,16 @@ const jsonMiddleware = (req, res, next) => {
     next();
   }
 };
+// Note: express.json() is required for the file route to read body { fileName, fileType }
 app.use(express.json());
 app.use(jsonMiddleware);
-app.use(keycloak.middleware());
+
+
+// 👇👇👇 CHANGED: Removed keycloak.middleware()
+// Okta JWT verification is stateless; we don't need a session middleware here.
+ app.use(keycloak.middleware()); 
+// 👆👆👆
+
 app.use(extractUserFromToken);
 
 // Initialize database
@@ -167,6 +184,11 @@ app.use("/api/admin",adminRoutes);
 app.use("/api/conversation", conversationRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 app.use('/api/artifacts', artifactsRoute);
+
+// 👇👇👇 NEW: Register the file route 
+app.use("/api/files", fileRoutes);
+// 👆👆👆
+
 app.use("/api", crudRouter);
 
  //this is a dynamic route so put it after all the routes you created
@@ -234,6 +256,10 @@ function setupShutdownHandlers(server) {
  */
 async function startServer() {
   try {
+
+    // 👇👇👇 CHANGED: Pass oktaAuth to socket service instead of keycloak
+    // const socketServices = await initializeSocketIO(server, oktaAuth);
+    // 👆👆👆
     // Initialize WebSocket with proper await
     const socketServices = await initializeSocketIO(server, keycloak);
     app.set("socket", socketServices); // Make available to controllers

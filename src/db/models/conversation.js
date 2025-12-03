@@ -38,6 +38,7 @@ module.exports = (sequelize, DataTypes) => {
     sequelize,
     modelName: 'Conversation',
     tableName: 'Conversations',
+    schema: 'USR',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   });

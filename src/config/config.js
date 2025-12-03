@@ -5,8 +5,17 @@ const dbConfig = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   host: process.env.DB_HOST,
-  dialect: process.env.DB_DIALECT,
-  schema: ["USR", "RGM"],
+
+  // 👇 FIX: Explicitly set this to 'postgres'
+  dialect: process.env.DB_DIALECT || 'postgres',
+
+  schema: "USR",
+  dialectOptions: {
+    ssl: {
+      require: true,
+      rejectUnauthorized: false,
+    },
+  },
   define: {
     timestamps: true,
     underscored: true,
@@ -20,15 +29,13 @@ const dbConfig = {
   logging: process.env.NODE_ENV === "development" ? console.log : false,
 };
 
-//for local 
-// const pyURL = "http://4.188.91.110:8443";
-// old= https://deepthought-dev.tigeranalytics.com/senseai-py-api/chat
+// ... (Keep the rest of your file exactly as it was below this line) ...
 
-// const pyURL = "http://senseai-python-api.deepthought.svc.cluster.local:8443";
-const pyURL = process.env.LLM_ENDPOINT ||  "http://4.188.91.110:8443"
+// For local 
+const pyURL = process.env.LLM_ENDPOINT || "http://4.188.91.110:8443"
 
 const endpoints = {
-  chatAI: `${pyURL}/chat`, //senseai-python
+  chatAI: `${pyURL}/chat`,
   dataDictionary: `${pyURL}/data-dictionary-redis`,
   chatAIStatus: `${pyURL}/task-status`,
   chatAISelection: `${pyURL}/generate-document`,
@@ -37,74 +44,28 @@ const endpoints = {
   threadReRunAPI: `${pyURL}/workflow/run`,
   dashboardsToPpt: `${pyURL}/dashboards_to_ppt`,
   insightsToPpt: `${pyURL}/insights_to_ppt`,
-
 };
-
 
 const allowedModels = {
   GET: [
-    "conversation",
-    "message",
-    "homescreen",
-    "persona",
-    "homescreenpersonaref",
-    "task",
-    "tasks",
-    "datasource",
-    "client",
-    "useraccess",
-    "users",
-    "industry",
-    "workflow",
-    "kpi",
+    "conversation", "message", "homescreen", "persona", "homescreenpersonaref",
+    "task", "tasks", "datasource", "client", "useraccess", "users",
+    "industry", "workflow", "kpi",
   ],
   POST: [
-    "conversation",
-    "message",
-    "file",
-    "homescreen",
-    "persona",
-    "homescreenpersonaref",
-    "task",
-    "tasks",
-    "datasource",
-    "client",
-    "useraccess",
-    "users",
-    "industry",
-    "workflow",
-    "kpi",
+    "conversation", "message", "file", "homescreen", "persona",
+    "homescreenpersonaref", "task", "tasks", "datasource", "client",
+    "useraccess", "users", "industry", "workflow", "kpi",
   ],
   PUT: [
-    "conversation",
-    "message",
-    "homescreen",
-    "persona",
-    "homescreenpersonaref",
-    "task",
-    "tasks",
-    "datasource",
-    "client",
-    "useraccess",
-    "users",
-    "industry",
-    "workflow",
-    "kpi",
+    "conversation", "message", "homescreen", "persona", "homescreenpersonaref",
+    "task", "tasks", "datasource", "client", "useraccess", "users",
+    "industry", "workflow", "kpi",
   ],
   DELETE: [
-    "conversation",
-    "homescreen",
-    "persona",
-    "homescreenpersonaref",
-    "task",
-    "tasks",
-    "datasource",
-    "client",
-    "useraccess",
-    "users",
-    "industry",
-    "workflow",
-    "kpi",
+    "conversation", "homescreen", "persona", "homescreenpersonaref",
+    "task", "tasks", "datasource", "client", "useraccess", "users",
+    "industry", "workflow", "kpi",
   ],
 };
 
@@ -153,11 +114,11 @@ const SAS_TOKEN_EXPIRY_HOURS = 10;
 const redisConfig = {
   host: process.env.REDIS_HOST || "dt-tiger-dev.redis.cache.windows.net",
   port: parseInt(process.env.REDIS_PORT || "6380", 10),
-  password:
-    process.env.REDIS_PASSWORD,
+  password: process.env.REDIS_PASSWORD,
   enableTLS: process.env.REDIS_SSL === "true",
   expireTime: parseInt(process.env.REDIS_EXPIRE || "14400", 10),
 };
+
 module.exports = {
   development: {
     ...dbConfig,
@@ -182,6 +143,5 @@ module.exports = {
   schemaMapping,
   SAS_TOKEN_EXPIRY_HOURS,
   endpoints,
-  SAS_TOKEN_EXPIRY_HOURS,
   redisConfig,
 };

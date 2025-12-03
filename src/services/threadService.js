@@ -601,7 +601,7 @@ async function fetchMessageDetails(messageIds) {
     const messages = await sequelize.query(
       `SELECT 
          id, conversation_id, message, sender_type, created_at, updated_at, metadata 
-       FROM [dbo].[Messages] 
+       FROM [DBO].[Messages] 
        WHERE id IN (${placeholders})
        ORDER BY created_at ASC`,
       {

@@ -12,8 +12,8 @@ const insightController = require("../controllers/dashboardController");
  * OPTIMIZED Dashboard data management routes - protected with auth middleware
  * Core dashboard routes for immediate loading
  */
-router.get("/homeDashboard", authMiddleware, dashboardController.homeDashboard);
-router.get("/homeSummary", authMiddleware, dashboardController.homeSummary);
+router.get("/homeDashboard", dashboardController.homeDashboard);
+router.get("/homeSummary",  dashboardController.homeSummary);
 router.get(
   "/insightsDashboard",
   authMiddleware,

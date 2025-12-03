@@ -27,13 +27,13 @@ module.exports = (sequelize, DataTypes) => {
       file_metadata: {
         type: DataTypes.TEXT, // Store JSON as a string
         allowNull: true,
-        get() {
-          const rawValue = this.getDataValue("file_metadata");
-          return rawValue ? JSON.parse(rawValue) : null;
-        },
-        set(value) {
-          this.setDataValue("file_metadata", JSON.stringify(value));
-        },
+        // get() {
+        //   const rawValue = this.getDataValue("file_metadata");
+        //   return rawValue ? JSON.parse(rawValue) : null;
+        // },
+        // set(value) {
+        //   this.setDataValue("file_metadata", JSON.stringify(value));
+        // },
       },
       created_by: DataTypes.STRING,
       updated_by: DataTypes.STRING,
@@ -42,6 +42,7 @@ module.exports = (sequelize, DataTypes) => {
       sequelize,
       modelName: "File",
       tableName: "Files",
+      schema: 'USR',
       createdAt: "created_at",
       updatedAt: "updated_at",
     }

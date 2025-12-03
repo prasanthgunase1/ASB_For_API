@@ -419,7 +419,7 @@ exports.getDbTables = async (req, res, next) => {
       {
         id: "1",
         name: "SALES_FACT",
-        schema: "dbo",
+        schema: "DBO",
         industryId: 1,
         description: "Contains sales transactions data",
         rowCount: 1500000,
@@ -445,7 +445,7 @@ exports.getDbTables = async (req, res, next) => {
       {
         id: "2",
         name: "CUSTOMER",
-        schema: "dbo",
+        schema: "DBO",
         industryId: 1,
         description: "Contains customer information",
         rowCount: 50000,
@@ -480,7 +480,7 @@ exports.getDbTables = async (req, res, next) => {
       {
         id: "3",
         name: "PRODUCT",
-        schema: "dbo",
+        schema: "DBO",
         industryId: 1,
         description: "Contains product information",
         rowCount: 10000,
@@ -515,7 +515,7 @@ exports.getDbTables = async (req, res, next) => {
       {
         id: "4",
         name: "CLAIMS",
-        schema: "dbo",
+        schema: "DBO",
         industryId: 2,
         description: "Contains insurance claims data",
         rowCount: 750000,

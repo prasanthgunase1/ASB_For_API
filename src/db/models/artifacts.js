@@ -3,23 +3,11 @@ const { Model } = require("sequelize");
 
 module.exports = (sequelize, DataTypes) => {
   class UserArtifacts extends Model {
-    /**
-     * Helper method for defining associations.
-     * This method is not a part of Sequelize lifecycle.
-     * The `models/index` file will call this method automatically.
-     */
     static associate(models) {
-      // Define association to the Persona model
       UserArtifacts.belongsTo(models.Persona, {
         foreignKey: "persona_id",
         as: "persona",
       });
-
-      // Define association to a User model if you have one
-      // UserArtifacts.belongsTo(models.User, {
-      //   foreignKey: "user_id",
-      //   as: "user",
-      // });
     }
   }
 
@@ -38,7 +26,12 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: false,
         references: {
-          model: "Persona", // This should match the model name of your Persona model
+          // ❌ WAS: model: "Persona", (Defaults to same schema 'dbo')
+          // ✅ FIX: Explicitly point to the 'USR' schema
+          model: {
+            tableName: "Persona",
+            schema: "USR",
+          },
           key: "persona_id",
         },
       },
@@ -55,37 +48,36 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       content: {
-        type: DataTypes.TEXT, // Use TEXT for NVARCHAR(MAX)
+        type: DataTypes.TEXT,
         allowNull: false,
+        // Kept your JSON handling logic
         get() {
           const rawValue = this.getDataValue("content");
-          // Safely parse the JSON string
           try {
             return rawValue ? JSON.parse(rawValue) : null;
           } catch (e) {
-            return rawValue; // Return as string if parsing fails
+            return rawValue;
           }
         },
         set(value) {
-          // Safely stringify the JSON object
           this.setDataValue("content", JSON.stringify(value));
         },
       },
       created_at: {
         type: DataTypes.DATE,
-        defaultValue: sequelize.literal("GETUTCDATE()"),
+        defaultValue: DataTypes.NOW, // Correct for Postgres
       },
       updated_at: {
         type: DataTypes.DATE,
-        defaultValue: sequelize.literal("GETUTCDATE()"),
+        defaultValue: DataTypes.NOW, // Correct for Postgres
       },
     },
     {
       sequelize,
       modelName: "UserArtifacts",
-      tableName: "user_artifacts", // The exact table name in your DB
-      schema: "dbo", // The exact schema in your DB
-      timestamps: true, // Let Sequelize manage created_at and updated_at
+      tableName: "user_artifacts",
+      schema: "DBO", 
+      timestamps: true,
       createdAt: "created_at",
       updatedAt: "updated_at",
     }

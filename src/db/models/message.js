@@ -63,6 +63,7 @@ module.exports = (sequelize, DataTypes) => {
     sequelize,
     modelName: 'Message',
     tableName: 'Messages',
+    schema: 'USR',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   });
