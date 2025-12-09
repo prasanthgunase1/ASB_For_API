@@ -9,7 +9,7 @@ module.exports = (sequelize, DataTypes) => {
 
   RecommendedQuestion.init(
     {
-      // Defines the columns of your USR.RecommendedQuestions table
+      // Defines the columns of your app_non_prod.RecommendedQuestions table
       id: {
         type: DataTypes.INTEGER,
         autoIncrement: true,
@@ -27,8 +27,8 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: "RecommendedQuestion",
-      tableName: "RecommendedQuestions", // The exact table name in your DB
-      schema: "USR",                   // The exact schema in your DB
+      tableName: "recommended_questions", // Changed to snake_case  // The exact table name in your DB
+      schema: "app_non_prod",                   // The exact schema in your DB
       timestamps: false,               // Disable created_at/updated_at columns
     }
   );

@@ -1,33 +1,43 @@
-const { uploadToAzure } = require("./azureBlob");
-const AZURE_CONTAINER_NAME = process.env.AZURE_CONTAINER_NAME;
-const MEDIA_API_ENDPOINT = process.env.MEDIA_API_ENDPOINT;
+// src/utils/uploadFiles.js (or similar)
+const { uploadBufferToS3 } = require("./awsS3");
+const { bucketName } = require("../config/awsConfig");
 const statusCodes = require("./statusCodes");
 
 exports.uploadFiles = async (files, folderPath, options = {}) => {
   if (!folderPath) {
-    const error = new Error("Missing required azure folder path");
+    const error = new Error("Missing required S3 folder path");
     error.statusCode = statusCodes.NOT_FOUND;
-    throw error; // Pass to error handler
+    throw error;
   }
+
   if (!files || files.length === 0) return [];
+
   try {
-    // Upload all files in parallel using Promise.all()
     const uploadedFiles = await Promise.all(
       files.map(async (file) => {
-        const blobData = await uploadToAzure(file, folderPath);
-        const fileUrl = blobData.blobUrl;
+        const uploadResult = await uploadBufferToS3({
+          buffer: file.buffer,
+          originalName: file.originalname,
+          mimeType: file.mimetype,
+          folderPath,
+        });
+
+        const fileUrl = uploadResult.blobUrl;
+
         return {
           fileUrl,
-          fileName: file.originalname || blobData.blobName.split("/").pop(),
+          fileName: file.originalname || uploadResult.blobName.split("/").pop(),
           fileType: file.mimetype,
-          fileSize: file.size || 0, // Ensure we never return null
+          fileSize: file.size || 0,
           fileMetadata: {
-            file_path: `/${AZURE_CONTAINER_NAME}/${blobData.blobName}`,
-            blob_path: blobData.blobUrl,
+            file_path: `/${bucketName}/${uploadResult.blobName}`,
+            blob_path: uploadResult.blobUrl,
+            provider: "aws-s3",
           },
         };
       })
     );
+
     return uploadedFiles;
   } catch (error) {
     throw error;

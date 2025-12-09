@@ -4,6 +4,7 @@ const { createRedisClient } = require("../config/redisClient");
 const repository = require("../data/crudRepository");
 const { logger } = require("../utils/logger");
 const chatAiService = require("../services/chatAiService");
+const oktaJwtVerifier = require("../config/oktaConfig"); // ✅ Okta verifier
 
 const REDIS_PREFIX = "dt";
 const REQUEST_RESULTS_PREFIX = "request_results:";
@@ -39,7 +40,6 @@ socketState.unsubscribeFromRequestResults = async (aiMessageId) => {
     logger.info(`Unsubscribed from Redis channel: ${channel}`);
   } catch (error) {
     logger.error(`Error unsubscribing from ${channel}: ${error.message}`);
-    // Still remove from active subscriptions even if Redis command fails
     socketState.activeSubscriptions.delete(String(aiMessageId));
   }
 };
@@ -48,13 +48,11 @@ async function setupRequestResultsRedisSubscription(client) {
   socketState.redisSubscriber = client;
 
   try {
-    // Debug Redis client capabilities
     logger.info(`Redis client class: ${client.constructor.name}`);
     logger.info(
       `Redis client version: ${require("redis/package.json").version}`
     );
 
-    // Check for specific Redis client methods
     logger.debug(
       `Client has subscribe method: ${typeof client.subscribe === "function"}`
     );
@@ -62,17 +60,14 @@ async function setupRequestResultsRedisSubscription(client) {
       `Client has pSubscribe method: ${typeof client.pSubscribe === "function"}`
     );
 
-    // First, make sure we're not already subscribed (prevent duplicate handlers)
     try {
       await client.unsubscribe();
     } catch (err) {
-      // Ignore - might not be subscribed yet
+      // ignore
     }
 
-    // Create message handler function - same handler for all subscription types
     const messageHandler = (message, channel) => {
       try {
-        // Log the raw message for debugging
         logger.info(
           `[REDIS MSG] Channel: ${channel}, Raw message: ${message.substring(
             0,
@@ -89,7 +84,6 @@ async function setupRequestResultsRedisSubscription(client) {
                 update
               ).substring(0, 100)}...`
             );
-            // OPTIMIZED: Immediate processing without delay
             setImmediate(() => handleRequestResultUpdate(questionId, update));
           } catch (parseError) {
             logger.error(`Invalid JSON on ${channel}: ${parseError.message}`, {
@@ -106,11 +100,8 @@ async function setupRequestResultsRedisSubscription(client) {
       }
     };
 
-    // Subscribe to Redis channels without using pattern matching first
-    // This is more reliable with Azure Redis Cache
     await client.subscribe(REQUEST_RESULTS_PREFIX + "*", messageHandler);
 
-    // Only try pattern matching if explicitly available
     if (typeof client.pSubscribe === "function") {
       try {
         await client.pSubscribe(REQUEST_RESULTS_PREFIX + "*", messageHandler);
@@ -130,11 +121,9 @@ async function setupRequestResultsRedisSubscription(client) {
       code: error.code || "unknown",
     });
 
-    // Alternative subscription approach as fallback
     try {
       logger.info("Trying alternative Redis subscription approach...");
 
-      // Create event handlers first
       const messageListener = (channel, message) => {
         logger.info(`[REDIS EVENT] Message on ${channel}`);
         if (channel.startsWith(REQUEST_RESULTS_PREFIX)) {
@@ -148,10 +137,8 @@ async function setupRequestResultsRedisSubscription(client) {
         }
       };
 
-      // Register the event handler
       client.on("message", messageListener);
 
-      // Then subscribe
       await client.subscribe(REQUEST_RESULTS_PREFIX + "*");
       logger.info("Fallback subscription approach successful");
       return client;
@@ -159,7 +146,7 @@ async function setupRequestResultsRedisSubscription(client) {
       logger.error(
         `Fallback subscription also failed: ${fallbackError.message}`
       );
-      throw error; // Throw the original error
+      throw error;
     }
   }
 }
@@ -171,9 +158,7 @@ async function handleRequestResultUpdate(aiMessageId, update) {
     ).substring(0, 100)}...`
   );
 
-  // DEBUG: Log the current subscription map and the lookup key
   const lookupKey = String(aiMessageId);
-  const allKeys = Array.from(socketState.activeSubscriptions.keys());
 
   try {
     const subscription = socketState.activeSubscriptions.get(lookupKey);
@@ -182,11 +167,7 @@ async function handleRequestResultUpdate(aiMessageId, update) {
         `[SOCKET DEBUG] No subscription found for message ${aiMessageId}`
       );
 
-      // EMERGENCY FIX: Emit completion events to all active conversations
-      // This ensures the UI gets updates even if subscription system is broken
       if (update.status === "completed" || update.status === "complete") {
-        // Try to find any conversation that might be interested in this message
-        // Look for rooms that contain this message ID pattern
         const allRooms = Array.from(
           socketState.io.sockets.adapter.rooms.keys()
         );
@@ -194,7 +175,6 @@ async function handleRequestResultUpdate(aiMessageId, update) {
           room.startsWith(`${REDIS_PREFIX}:conversation:`)
         );
 
-        // Broadcast to all conversation rooms - one of them should contain this message
         conversationRooms.forEach((room) => {
           const conversationId = room.split(":conversation:")[1];
           if (conversationId) {
@@ -252,7 +232,6 @@ async function handleRequestResultUpdate(aiMessageId, update) {
     };
     if (update.request_id) metadataUpdate.request_id = update.request_id;
 
-    // Update USR.Message (systemUpdate bypasses created_by check)
     let updatedMsg;
     try {
       updatedMsg = await chatAiService.updateChatMessage(
@@ -267,7 +246,6 @@ async function handleRequestResultUpdate(aiMessageId, update) {
       );
     }
 
-    // Update RGM.Task with proper error handling
     if (taskIdUUID) {
       try {
         await chatAiService.updateTaskStatus(
@@ -282,7 +260,6 @@ async function handleRequestResultUpdate(aiMessageId, update) {
       }
     }
 
-    // Create the payload
     const payload = {
       type: SOCKET_EVENTS.CONVERSATION_STATUS,
       conversation_id: String(conversationId),
@@ -295,11 +272,8 @@ async function handleRequestResultUpdate(aiMessageId, update) {
       timestamp: Date.now(),
     };
 
-    // For "completed" status, emit to BOTH events to ensure all UI components receive it
     if (["COMPLETED", "COMPLETE"].includes(messageStatus)) {
-
       try {
-        // Emit both events to ensure delivery
         io.to(room).emit(SOCKET_EVENTS.CONVERSATION_STATUS, {
           ...payload,
           queue_management: "check_running_queue",
@@ -314,17 +288,12 @@ async function handleRequestResultUpdate(aiMessageId, update) {
           `[SOCKET DEBUG] Error emitting completion events: ${emitError.message}`
         );
       }
-    }
-    // For queued status
-    else if (messageStatus === "QUEUED") {
+    } else if (messageStatus === "QUEUED") {
       io.to(room).emit(SOCKET_EVENTS.CONVERSATION_QUEUED, payload);
-    }
-    // For other statuses (processing, pending, etc.)
-    else {
+    } else {
       io.to(room).emit(SOCKET_EVENTS.CONVERSATION_STATUS, payload);
     }
 
-    // Only unsubscribe from Redis for final statuses to maintain connection for streaming updates
     const finalStatuses = [
       "COMPLETED",
       "COMPLETE",
@@ -349,7 +318,6 @@ async function handleRequestResultUpdate(aiMessageId, update) {
       { error, update }
     );
 
-    // Try to emit error even if other parts failed
     try {
       const room = `${REDIS_PREFIX}:conversation:${
         socketState.activeSubscriptions.get(String(aiMessageId))?.conversationId
@@ -376,7 +344,10 @@ async function handleRequestResultUpdate(aiMessageId, update) {
   }
 }
 
-function initializeSocketIO(server, keycloak) {
+/**
+ * Initialize Socket.IO with Okta auth (no Keycloak).
+ */
+function initializeSocketIO(server) {
   if (socketState.io) {
     logger.warn("Socket.IO already initialized");
     return Promise.resolve(socketState);
@@ -385,7 +356,6 @@ function initializeSocketIO(server, keycloak) {
   socketState.io = socketIO(server, {
     cors: {
       origin: (origin, callback) => {
-        // Parse ALLOWED_ORIGINS from environment
         let allowed = [];
         try {
           allowed = JSON.parse(process.env.ALLOWED_ORIGINS || "[]");
@@ -408,20 +378,16 @@ function initializeSocketIO(server, keycloak) {
           "https://deepthought-dev.tigeranalytics.com/senseai-py-api",
         ];
 
-        // Combine all allowed origins
         const allAllowed = [...new Set([...allowed, ...frontendDomains])];
 
-        // Allow requests with no origin (mobile apps, etc.)
         if (!origin) {
           return callback(null, true);
         }
 
-        // Check exact matches first
         if (allAllowed.includes(origin) || allAllowed.includes("*")) {
           console.log("Socket.IO CORS: Allowed origin:", origin);
           return callback(null, true);
         } else {
-          // Check patterns for Azure services + Python APIs
           const azurePatterns = [
             /^http:\/\/localhost:\d+$/,
             /^https:\/\/.*\.tigeranalytics\.com$/,
@@ -449,7 +415,7 @@ function initializeSocketIO(server, keycloak) {
         }
       },
       methods: ["GET", "POST"],
-      credentials: true, // CRITICAL: Must be true for credentials
+      credentials: true,
       allowedHeaders: [
         "Content-Type",
         "Authorization",
@@ -464,18 +430,14 @@ function initializeSocketIO(server, keycloak) {
         "Sec-WebSocket-Protocol",
       ],
     },
-    // Azure-optimized settings
     pingTimeout: 60000,
     pingInterval: 25000,
-    // CRITICAL: Ensure path matches client
     path: "/socket.io/",
-    transports: ["polling", "websocket"], // Start with polling for Azure compatibility
-    allowEIO3: true, // Support older clients if needed
-    // Add these for better Azure compatibility
+    transports: ["polling", "websocket"],
+    allowEIO3: true,
     upgradeTimeout: 30000,
     maxHttpBufferSize: 1e8,
     allowRequest: (req, callback) => {
-      // Log connection attempts for debugging
       console.log(
         "Socket.IO connection attempt from:",
         req.headers.origin || req.headers.host
@@ -485,23 +447,20 @@ function initializeSocketIO(server, keycloak) {
   });
 
   async function setup() {
-    // Redis adapter for scaling
     try {
       const pubClient = await createRedisClient();
       const subClient = await createRedisClient();
 
-      // Configure Redis adapter with retry options for Azure Redis Cache
       socketState.io.adapter(
         redisAdapter(pubClient, subClient.duplicate(), {
-          key: `${REDIS_PREFIX}:socket.io`, // Adds namespace for Socket.IO keys
-          requestsTimeout: 5000, // Azure Redis may need longer timeouts
+          key: `${REDIS_PREFIX}:socket.io`,
+          requestsTimeout: 5000,
         })
       );
 
-      // Subscribe to Python callbacks via Redis Pub/Sub
       await setupRequestResultsRedisSubscription(subClient);
 
-      setupAuthMiddleware(keycloak);
+      setupAuthMiddleware();   // ✅ Okta-based auth
       setupConnectionHandlers();
       setupHelperFunctions();
 
@@ -509,13 +468,11 @@ function initializeSocketIO(server, keycloak) {
       return socketState;
     } catch (error) {
       logger.error(`Failed to set up Redis adapter: ${error.message}`);
-      // Continue without Redis adapter as fallback
       logger.warn(
         "Socket.IO will operate without Redis adapter (no horizontal scaling)"
       );
 
-      // Setup remaining services without Redis
-      setupAuthMiddleware(keycloak);
+      setupAuthMiddleware();   // still enforce Okta auth
       setupConnectionHandlers();
       setupHelperFunctions();
 
@@ -527,83 +484,54 @@ function initializeSocketIO(server, keycloak) {
   return setup();
 }
 
-function setupAuthMiddleware(keycloak) {
+/**
+ * Socket.IO auth middleware using Okta.
+ * Expects token from: socket.handshake.auth.token OR Authorization header.
+ */
+function setupAuthMiddleware() {
   socketState.io.use(async (socket, next) => {
     try {
-      const token = socket.handshake.auth?.token;
+      // Prefer auth.token, fallback to Authorization header
+      let token = socket.handshake.auth?.token;
+
+      const authHeader = socket.handshake.headers?.authorization;
+      if (!token && authHeader && authHeader.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+      }
 
       if (!token) {
         logger.warn("Socket connection attempted without token");
         return next(new Error("Authentication error: No token provided"));
       }
 
-      // Log the token for debugging (first 20 chars only)
       logger.info(
-        `Socket auth attempt with token: ${token.substring(0, 20)}...`
+        `Socket auth attempt with token (first 20 chars): ${token.substring(
+          0,
+          20
+        )}...`
       );
 
-      try {
-        // Try Keycloak validation first
-        const grant = await keycloak.getGrant({ access_token: token });
-        if (grant.isExpired()) {
-          logger.warn("Socket authentication failed: Token expired");
-          return next(new Error("Authentication error: Token expired"));
-        }
-        socket.user = grant.payload;
-        logger.info(
-          `Socket authenticated successfully for user: ${
-            socket.user.preferred_username || socket.user.sub
-          }`
-        );
-        return next();
-      } catch (tokenError) {
-        logger.warn(
-          `Keycloak token validation failed: ${tokenError.message}, trying fallback validation`
-        );
+      // ✅ Verify using Okta
+      const jwt = await oktaJwtVerifier.verifyAccessToken(
+        token,
+        process.env.OKTA_AUDIENCE
+      );
 
-        // Fallback to basic JWT validation
-        if (token && token.length > 20) {
-          try {
-            const parts = token.split(".");
-            if (parts.length === 3) {
-              const payload = JSON.parse(
-                Buffer.from(parts[1], "base64").toString()
-              );
+      socket.user = {
+        userId: jwt.claims.uid || jwt.claims.sub,
+        email: jwt.claims.sub,
+        username: jwt.claims.sub,
+        name: jwt.claims.name || "",
+        groups: jwt.claims.groups || [],
+      };
 
-              // Validate required fields
-              if (payload.sub) {
-                socket.user = {
-                  sub: payload.sub,
-                  preferred_username:
-                    payload.preferred_username || payload.email || "user",
-                  exp: payload.exp,
-                };
-
-                // Check if token is expired
-                if (payload.exp && Date.now() >= payload.exp * 1000) {
-                  logger.warn(
-                    "Socket authentication failed: JWT token expired"
-                  );
-                  return next(new Error("Authentication error: Token expired"));
-                }
-
-                logger.info(
-                  `Socket fallback auth successful for user: ${socket.user.preferred_username}`
-                );
-                return next();
-              }
-            }
-          } catch (parseError) {
-            logger.error(`JWT parsing failed: ${parseError.message}`);
-          }
-        }
-
-        logger.error("Socket authentication failed: Invalid token format");
-        return next(new Error("Authentication error: Invalid token"));
-      }
+      logger.info(
+        `Socket authenticated successfully for user: ${socket.user.username}`
+      );
+      return next();
     } catch (err) {
-      logger.error(`Socket authentication error: ${err.message}`);
-      return next(new Error("Authentication error: Server error"));
+      logger.error(`Socket authentication failed: ${err.message}`);
+      return next(new Error("Authentication error: Invalid or expired token"));
     }
   });
 }
@@ -639,14 +567,12 @@ function setupConnectionHandlers() {
 }
 
 function setupHelperFunctions() {
-  // sendResponse(userId, conversationId, payload)
   socketState.sendResponse = (userId, conversationId, payload) => {
     if (!socketState.io) {
       logger.error("Socket.IO not initialized");
       return;
     }
 
-    // Declare evt BEFORE logging
     let evt = SOCKET_EVENTS.CONVERSATION_MESSAGE;
 
     if (payload.status?.toLowerCase() === "queued")
@@ -664,7 +590,6 @@ function setupHelperFunctions() {
     socketState.io.to(room).emit(evt, payload);
   };
 
-  // subscription management
   socketState.subscribeToRequestResults = async (
     aiMessageId,
     conversationId,
@@ -677,7 +602,6 @@ function setupHelperFunctions() {
     const channel = REQUEST_RESULTS_PREFIX + aiMessageId;
 
     try {
-      // Store the subscription data first
       const subscriptionKey = String(aiMessageId);
       socketState.activeSubscriptions.set(subscriptionKey, {
         conversationId,
@@ -685,7 +609,6 @@ function setupHelperFunctions() {
         taskIdUUID,
       });
 
-      // Create a message handler specifically for this channel
       const messageHandler = (message) => {
         try {
           logger.info(
@@ -700,7 +623,6 @@ function setupHelperFunctions() {
         }
       };
 
-      // Subscribe to this specific channel
       await socketState.redisSubscriber.subscribe(channel, messageHandler);
 
       logger.info(

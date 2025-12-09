@@ -25,7 +25,7 @@ class DataController {
       await Persona.update(
         {
           KPIs: kpiString,
-          updated_at: sequelize.literal("GETDATE()"),
+          updated_at: sequelize.literal("NOW()"),
         },
         {
           where: {

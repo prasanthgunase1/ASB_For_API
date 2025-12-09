@@ -8,13 +8,13 @@ module.exports = (sequelize, DataTypes) => {
         through: "HomeScreenPersonaRef",
         foreignKey: "persona_id",
         otherKey: "visual_id",
-        schema: "USR",
+        schema: "app_non_prod",
       });
       Persona.belongsToMany(models.InsightsScreen, {
         through: models.InsightsScreenPersonaRef,
         foreignKey: "persona_id",
         otherKey: "insight_id",
-        schema: "USR",
+        schema: "app_non_prod",
       });
       Persona.hasMany(models.UserAccess, {
         foreignKey: "persona_id",
@@ -37,17 +37,17 @@ module.exports = (sequelize, DataTypes) => {
       KPIs: DataTypes.TEXT,
       persona_context: DataTypes.TEXT,
       home_exec_summary: {
-        type: DataTypes.TEXT,
-        get() {
-          const value = this.getDataValue("home_exec_summary");
-          return value ? value : null;
-        },
-        set(value) {
-          this.setDataValue(
-            "home_exec_summary",
-            value ? JSON.stringify(value) : null
-          );
-        },
+        type: DataTypes.JSONB,
+        // get() {
+        //   const value = this.getDataValue("home_exec_summary");
+        //   return value ? value : null;
+        // },
+        // set(value) {
+        //   this.setDataValue(
+        //     "home_exec_summary",
+        //     value ? JSON.stringify(value) : null
+        //   );
+        // },
       },
       insights_exec_summary: DataTypes.TEXT,
       created_at: {
@@ -64,8 +64,8 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: "Persona",
-      tableName: "Persona",
-      schema: "USR",
+      tableName: "persona", // Changed to snake_case
+      schema: "app_non_prod",
       timestamps: false,
     }
   );

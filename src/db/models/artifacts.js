@@ -27,10 +27,10 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         references: {
           // ❌ WAS: model: "Persona", (Defaults to same schema 'dbo')
-          // ✅ FIX: Explicitly point to the 'USR' schema
+          // ✅ FIX: Explicitly point to the 'app_non_prod' schema
           model: {
-            tableName: "Persona",
-            schema: "USR",
+            tableName: "persona", // Changed to snake_case
+            schema: "app_non_prod",
           },
           key: "persona_id",
         },
@@ -48,20 +48,20 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       content: {
-        type: DataTypes.TEXT,
+        type: DataTypes.JSONB,
         allowNull: false,
         // Kept your JSON handling logic
-        get() {
-          const rawValue = this.getDataValue("content");
-          try {
-            return rawValue ? JSON.parse(rawValue) : null;
-          } catch (e) {
-            return rawValue;
-          }
-        },
-        set(value) {
-          this.setDataValue("content", JSON.stringify(value));
-        },
+        // get() {
+        //   const rawValue = this.getDataValue("content");
+        //   try {
+        //     return rawValue ? JSON.parse(rawValue) : null;
+        //   } catch (e) {
+        //     return rawValue;
+        //   }
+        // },
+        // set(value) {
+        //   this.setDataValue("content", JSON.stringify(value));
+        // },
       },
       created_at: {
         type: DataTypes.DATE,
@@ -76,7 +76,7 @@ module.exports = (sequelize, DataTypes) => {
       sequelize,
       modelName: "UserArtifacts",
       tableName: "user_artifacts",
-      schema: "DBO", 
+      schema: "app_non_prod",
       timestamps: true,
       createdAt: "created_at",
       updatedAt: "updated_at",

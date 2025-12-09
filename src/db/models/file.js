@@ -25,7 +25,7 @@ module.exports = (sequelize, DataTypes) => {
       file_type: DataTypes.STRING,
       file_name: DataTypes.STRING,
       file_metadata: {
-        type: DataTypes.TEXT, // Store JSON as a string
+        type: DataTypes.JSONB, // Store JSON as a string
         allowNull: true,
         // get() {
         //   const rawValue = this.getDataValue("file_metadata");
@@ -41,8 +41,8 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: "File",
-      tableName: "Files",
-      schema: 'USR',
+      tableName: "files", // Changed to snake_case
+      schema: 'app_non_prod',
       createdAt: "created_at",
       updatedAt: "updated_at",
     }

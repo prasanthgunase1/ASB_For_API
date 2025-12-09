@@ -26,18 +26,18 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       key_action_levers: {
-        type: DataTypes.TEXT,
+        type: DataTypes.JSONB,
         allowNull: true,
-        get() {
-          const value = this.getDataValue("key_action_levers");
-          return value ? JSON.parse(value) : null;
-        },
-        set(value) {
-          this.setDataValue(
-            "key_action_levers",
-            value ? JSON.stringify(value) : null
-          );
-        },
+        // get() {
+        //   const value = this.getDataValue("key_action_levers");
+        //   return value ? JSON.parse(value) : null;
+        // },
+        // set(value) {
+        //   this.setDataValue(
+        //     "key_action_levers",
+        //     value ? JSON.stringify(value) : null
+        //   );
+        // },
       },
       home_screen_status: {
         type: DataTypes.STRING(1),
@@ -63,19 +63,19 @@ module.exports = (sequelize, DataTypes) => {
       created_at: {
         type: DataTypes.DATE,
         allowNull: true,
-        defaultValue: sequelize.literal("GETDATE()"),
+        defaultValue: sequelize.literal("NOW()"),
       },
       updated_at: {
         type: DataTypes.DATE,
         allowNull: true,
-        defaultValue: sequelize.literal("GETDATE()"),
+        defaultValue: sequelize.literal("NOW()"),
       },
     },
     {
       sequelize,
       modelName: "KPI",
-      tableName: "KPIs",
-      schema: "USR",
+      tableName: "kpis", // Changed to snake_case
+      schema: "app_non_prod",
       timestamps: true,
       createdAt: "created_at",
       updatedAt: "updated_at",

@@ -1,21 +1,16 @@
+// src/config/config.js
 require("dotenv").config({ path: `${__dirname}/../../.env` });
 
-const dbConfig = {
+const NODE_ENV = process.env.NODE_ENV || "development";
+
+// Base DB config
+const baseDbConfig = {
   username: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   host: process.env.DB_HOST,
-
-  // 👇 FIX: Explicitly set this to 'postgres'
-  dialect: process.env.DB_DIALECT || 'postgres',
-
+  dialect: process.env.DB_DIALECT || "postgres",
   schema: "USR",
-  dialectOptions: {
-    ssl: {
-      require: true,
-      rejectUnauthorized: false,
-    },
-  },
   define: {
     timestamps: true,
     underscored: true,
@@ -26,13 +21,10 @@ const dbConfig = {
     acquire: 30000,
     idle: 10000,
   },
-  logging: process.env.NODE_ENV === "development" ? console.log : false,
 };
 
-// ... (Keep the rest of your file exactly as it was below this line) ...
-
 // For local 
-const pyURL = process.env.LLM_ENDPOINT || "http://4.188.91.110:8443"
+const pyURL = process.env.LLM_ENDPOINT || "http://4.188.91.110:8443";
 
 const endpoints = {
   chatAI: `${pyURL}/chat`,
@@ -121,15 +113,30 @@ const redisConfig = {
 
 module.exports = {
   development: {
-    ...dbConfig,
+    ...baseDbConfig,
+    dialectOptions: {
+      statement_timeout: 30000,
+    },
     logging: console.log,
   },
+
   test: {
-    ...dbConfig,
+    ...baseDbConfig,
+    dialectOptions: {
+      statement_timeout: 30000,
+    },
     logging: false,
   },
+
   production: {
-    ...dbConfig,
+    ...baseDbConfig,
+    dialectOptions: {
+      statement_timeout: 30000,
+      ssl: {
+        require: true,
+        rejectUnauthorized: false,
+      },
+    },
     logging: false,
     pool: {
       max: 10,
@@ -138,6 +145,7 @@ module.exports = {
       idle: 10000,
     },
   },
+
   allowedModels,
   modelMappings,
   schemaMapping,

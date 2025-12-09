@@ -8,7 +8,7 @@ module.exports = (sequelize, DataTypes) => {
         through: "HomeScreenPersonaRef",
         foreignKey: "visual_id",
         otherKey: "persona_id",
-        schema: "USR",
+        schema: "app_non_prod",
       });
     }
   }
@@ -28,7 +28,7 @@ module.exports = (sequelize, DataTypes) => {
       is_positive_trend: DataTypes.BOOLEAN,
       percent_change: DataTypes.FLOAT,
       period_type: DataTypes.STRING(50),
-      data_points: DataTypes.TEXT,
+      data_points: DataTypes.JSONB,
       priority: DataTypes.INTEGER,
       preference: DataTypes.INTEGER,
       python_code: DataTypes.TEXT,
@@ -43,8 +43,8 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: "HomeScreen",
-      tableName: "HomeScreen",
-      schema: "USR",
+      tableName: "home_screen", // Changed to snake_case
+      schema: "app_non_prod",
       timestamps: false,
     }
   );

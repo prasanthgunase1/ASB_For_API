@@ -46,15 +46,15 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     metadata: {
-        type: DataTypes.TEXT, // Store JSON as a string
+        type: DataTypes.JSONB, // Store JSON as a string
         allowNull: true,
-        get() {
-          const rawValue = this.getDataValue("metadata");
-          return rawValue ? JSON.parse(rawValue) : null;
-        },
-        set(value) {
-          this.setDataValue("metadata", JSON.stringify(value));
-        },
+        // get() {
+        //   const rawValue = this.getDataValue("metadata");
+        //   return rawValue ? JSON.parse(rawValue) : null;
+        // },
+        // set(value) {
+        //   this.setDataValue("metadata", JSON.stringify(value));
+        // },
     },
     feedback_reaction: DataTypes.STRING,
     created_by: DataTypes.STRING,
@@ -62,8 +62,8 @@ module.exports = (sequelize, DataTypes) => {
   }, {
     sequelize,
     modelName: 'Message',
-    tableName: 'Messages',
-    schema: 'USR',
+    tableName: 'messages', // Changed to snake_case
+    schema: 'app_non_prod',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   });

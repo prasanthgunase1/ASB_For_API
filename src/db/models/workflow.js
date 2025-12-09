@@ -26,58 +26,59 @@ module.exports = (sequelize, DataTypes) => {
       timestamp: {
         type: DataTypes.DATE,
         allowNull: true,
+        defaultValue: DataTypes.NOW, // ✅ Let Postgres handle the time automatically
       },
       metadata: {
-        type: DataTypes.TEXT("long"),
+        type: DataTypes.JSONB,
         allowNull: true,
-        get() {
-          try {
-            const raw = this.getDataValue("metadata");
-            return raw ? JSON.parse(raw) : null;
-          } catch (e) {
-            console.error("Error parsing metadata JSON:", e);
-            return this.getDataValue("metadata");
-          }
-        },
-        set(val) {
-          try {
-            this.setDataValue("metadata", val ? JSON.stringify(val) : null);
-          } catch (e) {
-            console.error("Error stringifying metadata:", e);
-            this.setDataValue("metadata", val);
-          }
-        },
+        // get() {
+        //   try {
+        //     const raw = this.getDataValue("metadata");
+        //     return raw ? JSON.parse(raw) : null;
+        //   } catch (e) {
+        //     console.error("Error parsing metadata JSON:", e);
+        //     return this.getDataValue("metadata");
+        //   }
+        // },
+        // set(val) {
+        //   try {
+        //     this.setDataValue("metadata", val ? JSON.stringify(val) : null);
+        //   } catch (e) {
+        //     console.error("Error stringifying metadata:", e);
+        //     this.setDataValue("metadata", val);
+        //   }
+        // },
       },
       workflow_steps: {
-        type: DataTypes.TEXT("long"),
+        type: DataTypes.JSONB,
         allowNull: true,
-        get() {
-          try {
-            const raw = this.getDataValue("workflow_steps");
-            return raw ? JSON.parse(raw) : null;
-          } catch (e) {
-            console.error("Error parsing workflow_steps JSON:", e);
-            return this.getDataValue("workflow_steps");
-          }
-        },
-        set(val) {
-          try {
-            this.setDataValue(
-              "workflow_steps",
-              val ? JSON.stringify(val) : null
-            );
-          } catch (e) {
-            console.error("Error stringifying workflow_steps:", e);
-            this.setDataValue("workflow_steps", val);
-          }
-        },
+        // get() {
+        //   try {
+        //     const raw = this.getDataValue("workflow_steps");
+        //     return raw ? JSON.parse(raw) : null;
+        //   } catch (e) {
+        //     console.error("Error parsing workflow_steps JSON:", e);
+        //     return this.getDataValue("workflow_steps");
+        //   }
+        // },
+        // set(val) {
+        //   try {
+        //     this.setDataValue(
+        //       "workflow_steps",
+        //       val ? JSON.stringify(val) : null
+        //     );
+        //   } catch (e) {
+        //     console.error("Error stringifying workflow_steps:", e);
+        //     this.setDataValue("workflow_steps", val);
+        //   }
+        // },
       },
     },
     {
       sequelize,
       modelName: "Workflow",
       tableName: "workflows",
-      schema: "USR",
+      schema: "app_non_prod",
       timestamps: false, // Critical change - no timestamp columns in the database
       freezeTableName: true,
     }

@@ -10,7 +10,7 @@ const {
   searchInsightById,
   updateInsightAnomalySearch,
   searchInsightDataById,
-} = require("../utils/azureSearchHelper");
+} = require("../utils/awsOpenSearch");
 const { callDashboardAPI } = require("../services/agentService");
 const { endpoints } = require("../config/config");
 const fetch = require("node-fetch").default;
@@ -274,7 +274,6 @@ exports.homeDashboard = async (req, res, next) => {
  * Generate dashboard PPT and upload to Azure Blob Storage
  * @route POST /dashboard/dashboards_to_ppt
  */
-
 
 exports.dashboardsToPpt = async (req, res, next) => {
   try {
@@ -1063,7 +1062,7 @@ exports.updateExecSummary = async (req, res, next) => {
       await Persona.update(
         {
           home_exec_summary: data,
-          updated_at: sequelize.literal("GETDATE()"),
+          updated_at: sequelize.literal("NOW()"),
         },
         {
           where: { persona_id: personaId },
@@ -1393,7 +1392,7 @@ exports.updateInsightStatus = async (req, res, next) => {
     const [updatedRowsCount] = await InsightsScreen.update(
       {
         status,
-        updated_at: sequelize.literal("GETDATE()"),
+        updated_at: sequelize.literal("NOW()"),
       },
       { where: { insight_id } }
     );
@@ -1434,7 +1433,7 @@ exports.updateBusinessInsight = async (req, res, next) => {
       {
         insight_brief: hlq_block,
         sql_query,
-        updated_at: sequelize.literal("GETDATE()"),
+        updated_at: sequelize.literal("NOW()"),
       },
       { where: { insight_id } }
     );

@@ -4,29 +4,33 @@ const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class UserAccess extends Model {
     static associate(models) {
-      UserAccess.belongsTo(models.Client, {
-        foreignKey: "client_id",
-        as: "Client",
-        onDelete: "CASCADE",
-      });
-      UserAccess.belongsTo(models.DataSource, {
-        foreignKey: "data_source_id",
-        as: "DataSource",
-        onDelete: "CASCADE",
-      });
       UserAccess.belongsTo(models.Industry, {
         foreignKey: "industry_id",
         as: "Industry",
         onDelete: "CASCADE",
       });
+
+      UserAccess.belongsTo(models.Client, {
+        foreignKey: "client_id",
+        as: "Client",
+        onDelete: "CASCADE",
+      });
+
+      UserAccess.belongsTo(models.Users, {
+        foreignKey: "user_id",
+        as: "User",
+        onDelete: "CASCADE",
+      });
+
       UserAccess.belongsTo(models.Persona, {
         foreignKey: "persona_id",
         as: "Persona",
         onDelete: "CASCADE",
       });
-      UserAccess.belongsTo(models.Users, {
-        foreignKey: "user_id",
-        as: "User",
+
+      UserAccess.belongsTo(models.DataSource, {
+        foreignKey: "data_source_id",
+        as: "DataSource",
         onDelete: "CASCADE",
       });
     }
@@ -38,7 +42,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         primaryKey: true,
         references: {
-          model: "Industry",
+          model: { tableName: "industry", schema: "app_non_prod" },
           key: "industry_id",
         },
       },
@@ -46,7 +50,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         primaryKey: true,
         references: {
-          model: "Client",
+          model: { tableName: "client", schema: "app_non_prod" },
           key: "client_id",
         },
       },
@@ -54,7 +58,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         primaryKey: true,
         references: {
-          model: "Users",
+          model: { tableName: "users", schema: "app_non_prod" },
           key: "user_id",
         },
       },
@@ -62,7 +66,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         primaryKey: true,
         references: {
-          model: "Persona",
+          model: { tableName: "persona", schema: "app_non_prod" },
           key: "persona_id",
         },
       },
@@ -70,18 +74,24 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         primaryKey: true,
         references: {
-          model: "DataSource",
+          model: { tableName: "data_source", schema: "app_non_prod" },
           key: "data_source_id",
         },
       },
-      created_at: DataTypes.DATE,
-      updated_at: DataTypes.DATE,
+      created_at: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
+      updated_at: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
     },
     {
       sequelize,
       modelName: "UserAccess",
-      tableName: "UserAccess",
-      schema: "USR",
+      tableName: "user_access",
+      schema: "app_non_prod",
       timestamps: true,
       createdAt: "created_at",
       updatedAt: "updated_at",

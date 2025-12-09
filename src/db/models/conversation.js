@@ -22,23 +22,23 @@ module.exports = (sequelize, DataTypes) => {
     user_id: DataTypes.STRING,
     title: DataTypes.STRING,
     conversation_metadata: {
-      type: DataTypes.TEXT,
+      type: DataTypes.JSONB,
       allowNull: true,
-      get() {
-        const rawValue = this.getDataValue('conversation_metadata');
-        return rawValue ? JSON.parse(rawValue) : null;
-      },
-      set(value) {
-        this.setDataValue('conversation_metadata', JSON.stringify(value));
-      },
+      // get() {
+      //   const rawValue = this.getDataValue('conversation_metadata');
+      //   return rawValue ? JSON.parse(rawValue) : null;
+      // },
+      // set(value) {
+      //   this.setDataValue('conversation_metadata', JSON.stringify(value));
+      // },
     },
     created_by: DataTypes.STRING,
     updated_by: DataTypes.STRING
   }, {
     sequelize,
     modelName: 'Conversation',
-    tableName: 'Conversations',
-    schema: 'USR',
+    tableName: 'conversations', // Changed to snake_case
+    schema: 'app_non_prod',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   });

@@ -2,6 +2,7 @@
 const { Model } = require("sequelize");
 
 module.exports = (sequelize, DataTypes) => {
+   const { Sequelize } = require("sequelize");
   class InsightsScreen extends Model {
     static associate(models) {
       // Define association with Persona through InsightsScreenPersonaRef
@@ -29,39 +30,39 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       insight_faqs: {
-        type: DataTypes.TEXT,
+        type: DataTypes.JSONB,
         allowNull: true,
-        get() {
-          const value = this.getDataValue("insight_faqs");
-          return value ? JSON.parse(value) : null;
-        },
-        set(value) {
-          this.setDataValue(
-            "insight_faqs",
-            value ? JSON.stringify(value) : null
-          );
-        },
+        // get() {
+        //   const value = this.getDataValue("insight_faqs");
+        //   return value ? JSON.parse(value) : null;
+        // },
+        // set(value) {
+        //   this.setDataValue(
+        //     "insight_faqs",
+        //     value ? JSON.stringify(value) : null
+        //   );
+        // },
       },
       insight_anomaly_data_points: {
-        type: DataTypes.TEXT,
+        type: DataTypes.JSONB,
         allowNull: true,
-        get() {
-          const value = this.getDataValue("insight_anomaly_data_points");
-          return value ? JSON.parse(value) : null;
-        },
-        set(value) {
-          this.setDataValue(
-            "insight_anomaly_data_points",
-            value ? JSON.stringify(value) : null
-          );
-        },
+        // get() {
+        //   const value = this.getDataValue("insight_anomaly_data_points");
+        //   return value ? JSON.parse(value) : null;
+        // },
+        // set(value) {
+        //   this.setDataValue(
+        //     "insight_anomaly_data_points",
+        //     value ? JSON.stringify(value) : null
+        //   );
+        // },
       },
       sql_query: {
-        type: DataTypes.TEXT,
+        type: DataTypes.JSONB,
         allowNull: true,
       },
       data_points: {
-        type: DataTypes.TEXT,
+        type: DataTypes.JSONB,
         allowNull: true,
       },
       insight_summary: {
@@ -87,13 +88,11 @@ module.exports = (sequelize, DataTypes) => {
       },
       created_at: {
         type: DataTypes.DATE,
-        allowNull: true,
-        defaultValue: sequelize.literal("GETDATE()"),
+        defaultValue: Sequelize.literal("NOW()"),
       },
       updated_at: {
         type: DataTypes.DATE,
-        allowNull: true,
-        defaultValue: sequelize.literal("GETDATE()"),
+        defaultValue: Sequelize.literal("NOW()"),
       },
       explainability_summary: {
         type: DataTypes.TEXT,
@@ -107,8 +106,9 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: "InsightsScreen",
-      tableName: "InsightsScreen",
-      schema: "USR",
+      tableName: "insights_screen", // Changed to snake_case
+      schema: "app_non_prod",
+      schema: "app_non_prod",
       timestamps: true,
       createdAt: "created_at",
       updatedAt: "updated_at",

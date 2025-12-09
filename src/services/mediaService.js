@@ -1,83 +1,82 @@
-const {
-  BlobServiceClient,
-  generateBlobSASQueryParameters,
-  BlobSASPermissions,
-} = require("@azure/storage-blob");
-const {
-  DefaultAzureCredential,
-  ManagedIdentityCredential,
-} = require("@azure/identity");
+// src/services/mediaService.js
 
-const config = require('../config/config')
-const accountName = process.env.AZURE_ACCOUNT_NAME;
-const containerName = process.env.AZURE_CONTAINER_NAME;
+require("dotenv").config({ path: `${__dirname}/../../.env` });
 
-if (!accountName || !containerName) {
+const {
+  HeadObjectCommand,
+  GetObjectCommand,
+} = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+
+const { s3Client, bucketName } = require("../config/awsConfig");
+const config = require("../config/config");
+
+const { SAS_TOKEN_EXPIRY_HOURS } = config;
+
+const isLocal = process.env.USE_LOCAL_STORAGE === "true";
+
+// Do not throw error if running in local mode
+if (!bucketName && !isLocal) {
   throw new Error(
-    "Azure Storage configuration is missing. Please check environment variables."
+    "AWS S3 configuration is missing. Please set AWS_BUCKET_NAME in environment."
   );
 }
 
-// Use Managed Identity if enabled, otherwise use DefaultAzureCredential
-const credential =
-  process.env.USE_MANAGED_IDENTITY === "true"
-    ? new ManagedIdentityCredential(process.env.AZURE_CLIENT_ID)
-    : new DefaultAzureCredential();
-
-const blobServiceClient = new BlobServiceClient(
-  `https://${accountName}.blob.core.windows.net`,
-  credential
-);
-
 /**
- * Check if a blob exists in Azure Blob Storage
- * @param {string} blobPath - Path of the blob (file name)
- * @returns {Promise<boolean>} - Returns true if exists, false otherwise
+ * 🔍 Check file exists
+ * Local → Always true
+ * AWS → Real check
  */
-exports.checkFileExists = async (blobPath) => {
-  const containerClient = blobServiceClient.getContainerClient(containerName);
-  const blobClient = containerClient.getBlobClient(blobPath);
-  return await blobClient.exists();
+exports.checkFileExists = async (objectKey) => {
+  if (isLocal) {
+    console.log("✔ Local mode: Skipping S3 check");
+    return true;
+  }
+
+  try {
+    const command = new HeadObjectCommand({
+      Bucket: bucketName,
+      Key: objectKey,
+    });
+
+    await s3Client.send(command);
+    return true;
+  } catch (err) {
+    if (
+      err.name === "NotFound" ||
+      err.$metadata?.httpStatusCode === 404
+    ) {
+      return false;
+    }
+    throw err;
+  }
 };
 
 /**
- * Generate a SAS token for secure blob access
- * @param {string} blobPath - Path of the blob (file name)
- * @returns {Promise<string>} - SAS URL of the blob
+ * 🔐 Generate local or AWS URL
  */
-exports.generateSasToken = async (blobPath) => {
-  const containerClient = blobServiceClient.getContainerClient(containerName);
-  const blobClient = containerClient.getBlobClient(blobPath);
-
-  // Ensure blob exists before generating SAS
-  const exists = await blobClient.exists();
+exports.generateSasToken = async (objectKey) => {
+  const exists = await exports.checkFileExists(objectKey);
   if (!exists) {
-    const error = new Error(
-      `Blob '${blobPath}' not found in container '${containerName}'.`
-    );
-    throw error;
+    throw new Error(`File not found: ${objectKey}`);
   }
 
-  const expiresOn = new Date();
-  expiresOn.setHours(expiresOn.getHours() + config.SAS_TOKEN_EXPIRY_HOURS); // 1-hour expiry
+  if (isLocal) {
+    console.log("✔ Local mode: Returning mock URL");
+    return `http://localhost:3000/mock-files/${objectKey}`;
+  }
 
-  // Fetch User Delegation Key for Managed Identity
-  const userDelegationKey = await blobServiceClient.getUserDelegationKey(
-    new Date(),
-    expiresOn
-  );
+  const hours = Number(SAS_TOKEN_EXPIRY_HOURS || 10);
+  const expiresIn = hours * 60 * 60;
 
-  // Generate SAS Token
-  const sasToken = generateBlobSASQueryParameters(
-    {
-      containerName,
-      blobName: blobPath,
-      permissions: BlobSASPermissions.parse("r"), // Read-only access
-      expiresOn,
-    },
-    userDelegationKey,
-    accountName
-  ).toString();
+  const command = new GetObjectCommand({
+    Bucket: bucketName,
+    Key: objectKey,
+  });
 
-  return `${blobClient.url}?${sasToken}`;
+  const signedUrl = await getSignedUrl(s3Client, command, {
+    expiresIn,
+  });
+
+  return signedUrl;
 };

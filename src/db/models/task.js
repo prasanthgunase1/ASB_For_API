@@ -34,25 +34,25 @@ module.exports = (sequelize, DataTypes) => {
       created_at: {
         type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: sequelize.literal("GETDATE()"),
+        defaultValue: sequelize.literal.NOW,
       },
       updated_at: {
         type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: sequelize.literal("GETDATE()"),
+        defaultValue: sequelize.literal.NOW,
       },
     },
     {
       sequelize,
       modelName: "Task",
       tableName: "tasks",
-      schema: "RGM",
+      schema: "app_non_prod",
       timestamps: true,
       createdAt: "created_at",
       updatedAt: "updated_at",
       hooks: {
         beforeUpdate: (task) => {
-          task.updated_at = sequelize.literal("GETDATE()");
+          task.updated_at = sequelize.literal.NOW;
         },
       },
     }

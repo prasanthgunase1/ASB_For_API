@@ -6,6 +6,7 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       Industry.hasMany(models.UserAccess, {
         foreignKey: "industry_id",
+        as: "UserAccess",
         onDelete: "CASCADE",
       });
     }
@@ -22,14 +23,20 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING(255),
         allowNull: false,
       },
-      created_at: DataTypes.DATE,
-      updated_at: DataTypes.DATE,
+      created_at: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
+      updated_at: {
+        type: DataTypes.DATE,
+        defaultValue: DataTypes.NOW,
+      },
     },
     {
       sequelize,
       modelName: "Industry",
-      tableName: "Industry",
-      schema: "USR",
+      tableName: "industry",
+      schema: "app_non_prod",
       createdAt: "created_at",
       updatedAt: "updated_at",
     }

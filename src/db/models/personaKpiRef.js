@@ -16,7 +16,7 @@ module.exports = (sequelize, DataTypes) => {
         references: {
           model: {
             tableName: "Persona",
-            schema: "USR",
+            schema: "app_non_prod",
           },
           key: "persona_id",
         },
@@ -27,7 +27,7 @@ module.exports = (sequelize, DataTypes) => {
         references: {
           model: {
             tableName: "KPIs",
-            schema: "USR",
+            schema: "app_non_prod",
           },
           key: "kpi_id",
         },
@@ -35,19 +35,19 @@ module.exports = (sequelize, DataTypes) => {
       created_at: {
         type: DataTypes.DATE,
         allowNull: true,
-        defaultValue: sequelize.literal("GETDATE()"),
+        defaultValue: sequelize.literal.NOW,
       },
       updated_at: {
         type: DataTypes.DATE,
         allowNull: true,
-        defaultValue: sequelize.literal("GETDATE()"),
+        defaultValue: sequelize.literal.NOW,
       },
     },
     {
       sequelize,
       modelName: "PersonaKPIRef",
-      tableName: "PersonaKPIRef",
-      schema: "USR",
+      tableName: "persona_kpi_ref", // Changed to snake_case
+      schema: "app_non_prod",
       timestamps: true,
       createdAt: "created_at",
       updatedAt: "updated_at",

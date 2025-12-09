@@ -12,7 +12,8 @@ const {
   powerBIMappings,
   microStrategyMappings,
 } = require("../config/dashboardMappings");
-const azureAdService = require("../services/azureAdService");
+// Azure AD service removed – system now uses Okta + local DB only
+// const azureAdService = require("../services/azureAdService");
 
 /**
  * Get all personas for the authenticated user or filtered by industry
@@ -286,20 +287,21 @@ exports.getBiDashboards = async (req, res, next) => {
 
     // Process PowerBI mappings
     Object.entries(powerBIMappings)
-      .filter(([id, _]) => !industryId || id === industryId)
-      .forEach(([industryId, industryMappings]) => {
+      .filter(([id]) => !industryId || id === industryId)
+      .forEach(([industryIdKey, industryMappings]) => {
         Object.entries(industryMappings).forEach(
           ([personaKey, personaConfig]) => {
             biDashboards.push({
-              id: `powerbi-${industryId}-${personaKey}`,
-              name: `PowerBI - Industry ${industryId} - ${
+              id: `powerbi-${industryIdKey}-${personaKey}`,
+              name: `PowerBI - Industry ${industryIdKey} - ${
                 personaKey === "default"
                   ? "All Personas"
                   : `Persona ${personaKey}`
               }`,
               type: "powerbi",
-              industryId: parseInt(industryId),
-              personaId: personaKey === "default" ? null : parseInt(personaKey),
+              industryId: parseInt(industryIdKey),
+              personaId:
+                personaKey === "default" ? null : parseInt(personaKey),
               config: personaConfig,
             });
           }
@@ -308,20 +310,21 @@ exports.getBiDashboards = async (req, res, next) => {
 
     // Process MicroStrategy mappings
     Object.entries(microStrategyMappings)
-      .filter(([id, _]) => !industryId || id === industryId)
-      .forEach(([industryId, industryMappings]) => {
+      .filter(([id]) => !industryId || id === industryId)
+      .forEach(([industryIdKey, industryMappings]) => {
         Object.entries(industryMappings).forEach(
           ([personaKey, personaConfig]) => {
             biDashboards.push({
-              id: `microstrategy-${industryId}-${personaKey}`,
-              name: `MicroStrategy - Industry ${industryId} - ${
+              id: `microstrategy-${industryIdKey}-${personaKey}`,
+              name: `MicroStrategy - Industry ${industryIdKey} - ${
                 personaKey === "default"
                   ? "All Personas"
                   : `Persona ${personaKey}`
               }`,
               type: "microstrategy",
-              industryId: parseInt(industryId),
-              personaId: personaKey === "default" ? null : parseInt(personaKey),
+              industryId: parseInt(industryIdKey),
+              personaId:
+                personaKey === "default" ? null : parseInt(personaKey),
               config: personaConfig,
             });
           }
@@ -566,13 +569,15 @@ exports.getDbTables = async (req, res, next) => {
 };
 
 /**
- * Get users with access to the system - First tries Azure AD, then falls back to database
+ * Get users with access to the system - now DB only (Azure AD removed)
  * @route GET /api/admin/users
  */
 exports.getUsers = async (req, res, next) => {
   try {
-    const { page = 1, limit = 50, search, useAzureAD = true } = req.query;
-    const offset = (page - 1) * limit;
+    const { page = 1, limit = 50, search } = req.query;
+    const numericLimit = Number(limit) || 50;
+    const numericPage = Number(page) || 1;
+    const offset = (numericPage - 1) * numericLimit;
     const username = req.user?.username;
 
     if (!username) {
@@ -582,107 +587,82 @@ exports.getUsers = async (req, res, next) => {
       });
     }
 
-    // Option to force database usage even if Azure AD is available
-    const forceDatabase = useAzureAD === 'false';
-    
-    let users = null;
-    let isFromAzureAD = false;
-    
-    // First try Azure AD if not explicitly disabled
-    if (!forceDatabase) {
-      try {
-        logger.info("Attempting to fetch users from Azure AD");
-        users = await azureAdService.getUsers({
-          top: Number(limit),
-          skip: offset,
-          search: search || null,
-        });
-        isFromAzureAD = true;
-        logger.info(`Successfully fetched ${users.rows.length} users from Azure AD`);
-      } catch (azureError) {
-        logger.warn("Failed to fetch users from Azure AD, falling back to database:", azureError);
-        users = null; // Reset to trigger database fallback
-      }
-    }
+    // DB-only search condition
+    const searchCondition = search
+      ? {
+          [Op.or]: [
+            { name: { [Op.like]: `%${search}%` } },
+            { email: { [Op.like]: `%${search}%` } },
+          ],
+        }
+      : {};
 
-    // Fall back to database if Azure AD failed or was disabled
-    if (!users) {
-      logger.info("Fetching users from database");
-      const searchCondition = search
-        ? {
-            [Op.or]: [
-              { name: { [Op.like]: `%${search}%` } },
-              { email: { [Op.like]: `%${search}%` } },
-            ],
-          }
-        : {};
+    // Fetch users from DB
+    const users = await Users.findAndCountAll({
+      where: searchCondition,
+      offset,
+      limit: numericLimit,
+      order: [["user_name", "ASC"]],
+      include: [
+        {
+          model: UserAccess,
+          as: "UserAccesses",
+          include: [
+            { model: Industry, as: "Industry" },
+            { model: Persona, as: "Persona" },
+            { model: Client, as: "Client" },
+          ],
+        },
+      ],
+    });
 
-      users = await Users.findAndCountAll({
-        where: searchCondition,
-        // limit: Number(limit),
-        offset: offset,
-        order: [["user_name", "ASC"]],
-        include: [
-          {
-            model: UserAccess,
-            as: "UserAccesses",
-            include: [
-              { model: Industry, as: "Industry" },
-              { model: Persona, as: "Persona" },
-              { model: Client, as: "Client" },
-            ],
-          },
-        ],
-      });
-    }
-
-    // Process users to add industries information for database users
+    // Same formatting logic as your old DB fallback
     const processedUsers = await Promise.all(
       users.rows.map(async (user) => {
-        // For Azure AD users, return as is
-        if (isFromAzureAD) {
-          return user;
-        }
-        
-        // For database users, process and add industry info
         const userJson = user.toJSON ? user.toJSON() : user;
-        
-        // Format user accesses for database users
+
         if (userJson.UserAccesses) {
           const industries = [];
-          
-          userJson.UserAccesses.forEach(access => {
-            // Check if this industry already exists in our array
+
+          userJson.UserAccesses.forEach((access) => {
             const existingIndustry = industries.find(
-              ind => ind.id === access.Industry?.industry_id
+              (ind) => ind.id === access.Industry?.industry_id
             );
-            
+
             if (access.Industry) {
               if (existingIndustry) {
-                // Add persona to existing industry if not already present
-                if (!existingIndustry.personas.some(p => p.id === access.Persona?.persona_id)) {
+                // Add persona if not already present
+                if (
+                  access.Persona &&
+                  !existingIndustry.personas.some(
+                    (p) => p.id === access.Persona?.persona_id
+                  )
+                ) {
                   existingIndustry.personas.push({
-                    id: access.Persona?.persona_id,
-                    name: access.Persona?.persona,
+                    id: access.Persona.persona_id,
+                    name: access.Persona.persona,
                   });
                 }
               } else {
-                // Add new industry with persona
                 industries.push({
                   id: access.Industry.industry_id,
                   name: access.Industry.industry_name,
-                  personas: access.Persona ? [{
-                    id: access.Persona.persona_id,
-                    name: access.Persona.persona,
-                  }] : []
+                  personas: access.Persona
+                    ? [
+                        {
+                          id: access.Persona.persona_id,
+                          name: access.Persona.persona,
+                        },
+                      ]
+                    : [],
                 });
               }
             }
           });
-          
+
           userJson.industries = industries;
         }
-        
+
         delete userJson.UserAccesses;
         return userJson;
       })
@@ -692,10 +672,10 @@ exports.getUsers = async (req, res, next) => {
       success: true,
       data: processedUsers,
       total: users.count,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(users.count / limit),
-      source: isFromAzureAD ? 'azure_ad' : 'database'
+      page: numericPage,
+      limit: numericLimit,
+      totalPages: Math.ceil(users.count / numericLimit),
+      source: "database", // keep `source` field but now always DB
     });
   } catch (error) {
     logger.error("Error fetching users:", error);
@@ -704,7 +684,7 @@ exports.getUsers = async (req, res, next) => {
 };
 
 /**
- * Create or update a user - For database users only (Azure AD users are managed in Azure)
+ * Create or update a user - For database users only
  * @route POST /api/admin/users
  */
 exports.updateUser = async (req, res, next) => {
@@ -733,9 +713,11 @@ exports.updateUser = async (req, res, next) => {
 
     // Check if this is an update or create operation
     if (id) {
-      // Check if this is an Azure AD user (by checking for an Azure AD ID format)
-      const isAzureADId = id.match(/^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/);
-      
+      // Check if this looks like an Azure AD GUID – prevent accidental edits of legacy AD users
+      const isAzureADId = id.match(
+        /^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/
+      );
+
       if (isAzureADId) {
         await transaction.rollback();
         return res.status(400).json({
@@ -743,10 +725,10 @@ exports.updateUser = async (req, res, next) => {
           message: "Azure AD users must be updated in the Azure portal",
         });
       }
-      
+
       // Update existing database user
       user = await Users.findByPk(id, { transaction });
-      
+
       if (!user) {
         await transaction.rollback();
         return res.status(404).json({
@@ -754,7 +736,7 @@ exports.updateUser = async (req, res, next) => {
           message: "User not found",
         });
       }
-      
+
       // Update user properties
       await user.update(
         {
@@ -792,7 +774,7 @@ exports.updateUser = async (req, res, next) => {
       for (const industry of industries) {
         if (industry.id) {
           const personas = industry.personas || [];
-          
+
           for (const persona of personas) {
             if (persona.id) {
               await UserAccess.create(
@@ -833,16 +815,21 @@ exports.updateUser = async (req, res, next) => {
     // Process user data to add formatted industries
     const userJson = updatedUser.toJSON();
     const formattedIndustries = [];
-    
+
     if (userJson.UserAccesses) {
-      userJson.UserAccesses.forEach(access => {
+      userJson.UserAccesses.forEach((access) => {
         const existingIndustry = formattedIndustries.find(
-          ind => ind.id === access.Industry?.industry_id
+          (ind) => ind.id === access.Industry?.industry_id
         );
-        
+
         if (access.Industry) {
           if (existingIndustry) {
-            if (access.Persona && !existingIndustry.personas.some(p => p.id === access.Persona?.persona_id)) {
+            if (
+              access.Persona &&
+              !existingIndustry.personas.some(
+                (p) => p.id === access.Persona?.persona_id
+              )
+            ) {
               existingIndustry.personas.push({
                 id: access.Persona.persona_id,
                 name: access.Persona.persona,
@@ -852,16 +839,20 @@ exports.updateUser = async (req, res, next) => {
             formattedIndustries.push({
               id: access.Industry.industry_id,
               name: access.Industry.industry_name,
-              personas: access.Persona ? [{
-                id: access.Persona.persona_id,
-                name: access.Persona.persona,
-              }] : []
+              personas: access.Persona
+                ? [
+                    {
+                      id: access.Persona.persona_id,
+                      name: access.Persona.persona,
+                    },
+                  ]
+                : [],
             });
           }
         }
       });
     }
-    
+
     userJson.industries = formattedIndustries;
     delete userJson.UserAccesses;
 
@@ -878,13 +869,12 @@ exports.updateUser = async (req, res, next) => {
 };
 
 /**
- * Get a specific user by ID - Tries Azure AD first, then falls back to database
+ * Get a specific user by ID - DB only (Azure AD removed)
  * @route GET /api/admin/users/:userId
  */
 exports.getUserById = async (req, res, next) => {
   try {
     const { userId } = req.params;
-    const { useAzureAD = true } = req.query;
     const username = req.user?.username;
 
     if (!username) {
@@ -894,102 +884,76 @@ exports.getUserById = async (req, res, next) => {
       });
     }
 
-    let user = null;
-    let isFromAzureAD = false;
-    
-    // First try Azure AD if not explicitly disabled
-    if (useAzureAD !== 'false') {
-      try {
-        // Check if this looks like an Azure AD ID (GUID format)
-        const isAzureADId = userId.match(/^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/);
-        
-        if (isAzureADId) {
-          logger.info(`Attempting to fetch user ${userId} from Azure AD`);
-          user = await azureAdService.getUser(userId);
-          isFromAzureAD = true;
-          logger.info(`Successfully fetched user from Azure AD: ${user.displayName}`);
-        }
-      } catch (azureError) {
-        logger.warn(`Failed to fetch user ${userId} from Azure AD:`, azureError);
-        user = null; // Reset to trigger database fallback
-      }
-    }
+    logger.info(`Fetching user ${userId} from database`);
 
-    // Fall back to database if Azure AD failed or was disabled
-    if (!user) {
-      logger.info(`Fetching user ${userId} from database`);
-      const dbUser = await Users.findByPk(userId, {
-        include: [
-          {
-            model: UserAccess,
-            as: "UserAccesses",
-            include: [
-              { model: Industry, as: "Industry" },
-              { model: Persona, as: "Persona" },
-              { model: Client, as: "Client" },
-            ],
-          },
-        ],
+    const dbUser = await Users.findByPk(userId, {
+      include: [
+        {
+          model: UserAccess,
+          as: "UserAccesses",
+          include: [
+            { model: Industry, as: "Industry" },
+            { model: Persona, as: "Persona" },
+            { model: Client, as: "Client" },
+          ],
+        },
+      ],
+    });
+
+    if (!dbUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
       });
-      
-      if (!dbUser) {
-        return res.status(404).json({
-          success: false,
-          message: "User not found",
-        });
-      }
-      
-      user = dbUser;
     }
 
-    // Process user data
-    let userData;
-    if (isFromAzureAD) {
-      // Azure AD users come already formatted
-      userData = user;
-    } else {
-      // Format database users
-      const userJson = user.toJSON();
-      const formattedIndustries = [];
-      
-      if (userJson.UserAccesses) {
-        userJson.UserAccesses.forEach(access => {
-          const existingIndustry = formattedIndustries.find(
-            ind => ind.id === access.Industry?.industry_id
-          );
-          
-          if (access.Industry) {
-            if (existingIndustry) {
-              if (access.Persona && !existingIndustry.personas.some(p => p.id === access.Persona?.persona_id)) {
-                existingIndustry.personas.push({
-                  id: access.Persona.persona_id,
-                  name: access.Persona.persona,
-                });
-              }
-            } else {
-              formattedIndustries.push({
-                id: access.Industry.industry_id,
-                name: access.Industry.industry_name,
-                personas: access.Persona ? [{
-                  id: access.Persona.persona_id,
-                  name: access.Persona.persona,
-                }] : []
+    const userJson = dbUser.toJSON();
+    const formattedIndustries = [];
+
+    if (userJson.UserAccesses) {
+      userJson.UserAccesses.forEach((access) => {
+        const existingIndustry = formattedIndustries.find(
+          (ind) => ind.id === access.Industry?.industry_id
+        );
+
+        if (access.Industry) {
+          if (existingIndustry) {
+            if (
+              access.Persona &&
+              !existingIndustry.personas.some(
+                (p) => p.id === access.Persona?.persona_id
+              )
+            ) {
+              existingIndustry.personas.push({
+                id: access.Persona.persona_id,
+                name: access.Persona.persona,
               });
             }
+          } else {
+            formattedIndustries.push({
+              id: access.Industry.industry_id,
+              name: access.Industry.industry_name,
+              personas: access.Persona
+                ? [
+                    {
+                      id: access.Persona.persona_id,
+                      name: access.Persona.persona,
+                    },
+                  ]
+                : [],
+            });
           }
-        });
-      }
-      
-      userJson.industries = formattedIndustries;
-      delete userJson.UserAccesses;
-      
-      userData = userJson;
+        }
+      });
     }
+
+    userJson.industries = formattedIndustries;
+    delete userJson.UserAccesses;
 
     return res.json({
       success: true,
-      data: userData,
-      source: isFromAzureAD ? 'azure_ad' : 'database'
+      data: userJson,
+      source: "database",
     });
   } catch (error) {
     logger.error(`Error fetching user ${req.params.userId}:`, error);
@@ -1081,39 +1045,13 @@ exports.getSystemStatus = async (req, res, next) => {
       databaseStatus = "error";
     }
 
-    // Test Azure AD connection using the enhanced method
-    let azureAdStatus = "inactive";
-    let azureAdDetails = null;
-    try {
-      const connectionCheck = await azureAdService.checkConnection();
-      
-      if (connectionCheck.status) {
-        // We have some level of connection
-        if (connectionCheck.hasUserReadAccess) {
-          azureAdStatus = "active";
-        } else {
-          // Connected but with permission issues
-          azureAdStatus = "limited";
-          azureAdDetails = {
-            message: connectionCheck.message,
-            error: connectionCheck.error
-          };
-        }
-      } else {
-        azureAdStatus = "error";
-        azureAdDetails = {
-          message: connectionCheck.message,
-          error: connectionCheck.error
-        };
-      }
-    } catch (azureError) {
-      logger.error("Azure AD connection error:", azureError);
-      azureAdStatus = "error";
-      azureAdDetails = {
-        message: "Azure AD connection check failed",
-        error: azureError.message
-      };
-    }
+    // Azure AD integration removed – mark as disabled in status
+    const azureAdStatus = "disabled";
+    const azureAdDetails = {
+      message:
+        "Azure AD / Microsoft Graph integration is disabled. System uses Okta + local DB.",
+      error: null,
+    };
 
     // Simplified BI services status check
     const biServicesStatus = "online"; // Could be enhanced with actual checks
@@ -1125,7 +1063,7 @@ exports.getSystemStatus = async (req, res, next) => {
     const nodeVersion = process.version;
 
     // Get disk usage (simplified)
-    const diskUsage = 65; // This is a placeholder - could be replaced with actual disk usage check
+    const diskUsage = 65; // Placeholder – can be replaced with actual check
 
     return res.json({
       success: true,
@@ -1133,7 +1071,7 @@ exports.getSystemStatus = async (req, res, next) => {
         apiServerStatus: "online",
         databaseStatus,
         azureAdStatus,
-        azureAdDetails, // Include the details for troubleshooting
+        azureAdDetails,
         biServicesStatus,
         metrics: {
           diskUsage,

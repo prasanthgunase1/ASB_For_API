@@ -1,7 +1,7 @@
 const { logger } = require("../utils/logger");
 const { getPowerBIConfig } = require("../config/dashboardMappings");
 const axios = require("axios");
-const msal = require("@azure/msal-node");
+// const msal = require("@azure/msal-node");
 const config = require("../config/config");
 
 // Configuration constants - moved from hardcoded values to environment variables
@@ -34,26 +34,26 @@ const getAzureAccessToken = async () => {
       throw new Error("Azure PowerBI credentials not configured");
     }
 
-    const msalConfig = {
-      auth: {
-        clientId: process.env.POWERBI_CLIENT_ID,
-        authority: `https://login.microsoftonline.com/${process.env.POWERBI_TENANT_ID}`,
-        clientSecret: process.env.POWERBI_CLIENT_SECRET,
-      },
-      system: {
-        loggerOptions: {
-          logLevel: process.env.NODE_ENV === "development" ? 3 : 2, // Info level in dev, Warning in prod
-          loggerCallback: (level, message, containsPii) => {
-            if (!containsPii) {
-              logger.info(`MSAL (${level}): ${message}`);
-            }
-          },
-        },
-      },
-    };
+    // const msalConfig = {
+    //   auth: {
+    //     clientId: process.env.POWERBI_CLIENT_ID,
+    //     authority: `https://login.microsoftonline.com/${process.env.POWERBI_TENANT_ID}`,
+    //     clientSecret: process.env.POWERBI_CLIENT_SECRET,
+    //   },
+    //   system: {
+    //     loggerOptions: {
+    //       logLevel: process.env.NODE_ENV === "development" ? 3 : 2, // Info level in dev, Warning in prod
+    //       loggerCallback: (level, message, containsPii) => {
+    //         if (!containsPii) {
+    //           logger.info(`MSAL (${level}): ${message}`);
+    //         }
+    //       },
+    //     },
+    //   },
+    // };
 
     // Use confidential client application pattern for service principals
-    const cca = new msal.ConfidentialClientApplication(msalConfig);
+    // const cca = new msal.ConfidentialClientApplication(msalConfig);
 
     const result = await cca.acquireTokenByClientCredential({
       scopes: ["https://analysis.windows.net/powerbi/api/.default"],

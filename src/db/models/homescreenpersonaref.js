@@ -29,8 +29,8 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: "HomeScreenPersonaRef",
-      tableName: "HomeScreenPersonaRef",
-      schema: "USR",
+      tableName: "home_screen_persona_ref", // Changed to snake_case
+      schema: "app_non_prod",
       timestamps: false,
     }
   );

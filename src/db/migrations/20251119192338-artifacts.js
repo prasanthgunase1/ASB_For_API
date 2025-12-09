@@ -1,24 +1,67 @@
 "use strict";
 
+/**
+ * ============================================================
+ * CONFIGURATION SECTION - EDIT HERE FOR FUTURE CHANGES
+ * ============================================================
+ */
+
+const SCHEMAS = {
+  app_non_prod: "app_non_prod",
+  app_non_prod: "app_non_prod",
+  app_non_prod: "app_non_prod", 
+};
+
+// CHANGED: All table names converted to snake_case
+const TABLES = {
+  // Independent Tables
+  USERS: "users",                          // was "Users"
+  CLIENT: "client",                        // was "Client"
+  INDUSTRY: "industry",                    // was "Industry"
+  DATA_SOURCE: "data_source",              // was "DataSource"
+  PERSONA: "persona",                      // was "Persona"
+  HOME_SCREEN: "home_screen",              // was "HomeScreen"
+  INSIGHTS_SCREEN: "insights_screen",      // was "InsightsScreen"
+  KPIS: "kpis",                            // was "KPIs"
+  WORKFLOWS: "workflows",
+  CONVERSATIONS: "conversations",          // was "Conversations"
+
+  // Dependent Tables (FKs)
+  USER_ARTIFACTS: "user_artifacts",
+  RECOMMENDED_QUESTIONS: "recommended_questions", // was "RecommendedQuestions"
+  TASKS: "tasks",
+  MESSAGES: "message",                     // was "Message"
+  FILES: "files",                          // was "Files"
+
+  // Join/Junction Tables
+  USER_ACCESS: "user_access",                       // was "UserAccess"
+  HOME_SCREEN_PERSONA_REF: "home_screen_persona_ref",         // was "HomeScreenPersonaRef"
+  INSIGHTS_SCREEN_PERSONA_REF: "insights_screen_persona_ref", // was "InsightsScreenPersonaRef"
+  PERSONA_KPI_REF: "persona_kpi_ref",               // was "PersonaKPIRef"
+};
+
+/**
+ * ============================================================
+ * MIGRATION LOGIC
+ * ============================================================
+ */
+
 module.exports = {
   async up(queryInterface, Sequelize) {
     /**
      * 1. Create Schemas
-     * PostgreSQL requires schemas to be created explicitly before tables can be added to them.
      */
-    await queryInterface.createSchema("USR");
-    await queryInterface.createSchema("RGM");
-    // 'dbo' is standard in SQL Server. We create it here to match your UserArtifacts model.
-    // If you prefer 'public', change schema: 'dbo' to schema: 'public' in the UserArtifacts table definition below.
-    await queryInterface.createSchema("DBO"); 
+    await queryInterface.createSchema(SCHEMAS.app_non_prod);
+    await queryInterface.createSchema(SCHEMAS.app_non_prod);
+    await queryInterface.createSchema(SCHEMAS.app_non_prod);
 
     /**
-     * 2. Independent Tables (No Foreign Keys)
+     * 2. Independent Tables
      */
 
-    // Users (Schema: USR)
+    // users
     await queryInterface.createTable(
-      { tableName: "Users", schema: "USR" },
+      { tableName: TABLES.USERS, schema: SCHEMAS.app_non_prod },
       {
         user_id: {
           type: Sequelize.INTEGER,
@@ -44,9 +87,9 @@ module.exports = {
       }
     );
 
-    // Client (Schema: USR)
+    // client
     await queryInterface.createTable(
-      { tableName: "Client", schema: "USR" },
+      { tableName: TABLES.CLIENT, schema: SCHEMAS.app_non_prod },
       {
         client_id: {
           type: Sequelize.INTEGER,
@@ -69,68 +112,10 @@ module.exports = {
         updated_at: Sequelize.DATE,
       }
     );
-    
-// await queryInterface.createTable(
-//   { tableName: "Client", schema: "USR" }, // Note plural "Clients"
-//   {
-//     client_id: {
-//       type: Sequelize.INTEGER,
-//       primaryKey: true,
-//       autoIncrement: true, // This handles IDENTITY(1,1)
-//     },
-//     client_name: {
-//       type: Sequelize.STRING(200),
-//       allowNull: true, // Changed to match your SQL implication
-//     },
-//     poc_name: {
-//       type: Sequelize.STRING(100),
-//       allowNull: true,
-//     },
-//     poc_email: {
-//       type: Sequelize.STRING(200),
-//       allowNull: true,
-//     },
-//     deposit_balance: {
-//       type: Sequelize.DECIMAL(18, 2), // Precision 18, Scale 2
-//       allowNull: true,
-//     },
-//     loan_outstanding: {
-//       type: Sequelize.DECIMAL(18, 2),
-//       allowNull: true,
-//     },
-//     net_profit: {
-//       type: Sequelize.DECIMAL(18, 2),
-//       allowNull: true,
-//     },
-//     financial_score: {
-//       type: Sequelize.DECIMAL(4, 1), // Precision 4, Scale 1 (e.g. 8.1)
-//       allowNull: true,
-//     },
-//     relationship_score: {
-//       type: Sequelize.DECIMAL(4, 1),
-//       allowNull: true,
-//     },
-//     risk_score: {
-//       type: Sequelize.DECIMAL(4, 1),
-//       allowNull: true,
-//     },
-//     last_updated: {
-//       type: Sequelize.DATE, // Maps to DATETIME
-//       allowNull: true,
-//     },
-//     // Sequelize usually adds these automatically unless disabled in model
-//     created_at: {
-//         type: Sequelize.DATE,
-//         defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
-//     },
-//     updated_at: Sequelize.DATE,
-//   }
-// );
 
-
-    // Industry (Schema: USR)
+    // industry
     await queryInterface.createTable(
-      { tableName: "Industry", schema: "USR" },
+      { tableName: TABLES.INDUSTRY, schema: SCHEMAS.app_non_prod },
       {
         industry_id: {
           type: Sequelize.INTEGER,
@@ -146,9 +131,9 @@ module.exports = {
       }
     );
 
-    // DataSource (Schema: USR)
+    // data_source
     await queryInterface.createTable(
-      { tableName: "DataSource", schema: "USR" },
+      { tableName: TABLES.DATA_SOURCE, schema: SCHEMAS.app_non_prod },
       {
         data_source_id: {
           type: Sequelize.INTEGER,
@@ -172,9 +157,9 @@ module.exports = {
       }
     );
 
-    // Persona (Schema: USR)
+    // persona
     await queryInterface.createTable(
-      { tableName: "Persona", schema: "USR" },
+      { tableName: TABLES.PERSONA, schema: SCHEMAS.app_non_prod },
       {
         persona_id: {
           type: Sequelize.INTEGER,
@@ -187,7 +172,7 @@ module.exports = {
         },
         KPIs: Sequelize.TEXT,
         persona_context: Sequelize.TEXT,
-        home_exec_summary: Sequelize.TEXT,
+        home_exec_summary: Sequelize.JSONB,
         insights_exec_summary: Sequelize.TEXT,
         created_at: {
           type: Sequelize.DATE,
@@ -200,9 +185,9 @@ module.exports = {
       }
     );
 
-    // HomeScreen (Schema: USR)
+    // home_screen
     await queryInterface.createTable(
-      { tableName: "HomeScreen", schema: "USR" },
+      { tableName: TABLES.HOME_SCREEN, schema: SCHEMAS.app_non_prod },
       {
         visual_id: {
           type: Sequelize.INTEGER,
@@ -217,7 +202,7 @@ module.exports = {
         is_positive_trend: Sequelize.BOOLEAN,
         percent_change: Sequelize.FLOAT,
         period_type: Sequelize.STRING(50),
-        data_points: Sequelize.TEXT,
+        data_points: Sequelize.JSONB,
         priority: Sequelize.INTEGER,
         preference: Sequelize.INTEGER,
         python_code: Sequelize.TEXT,
@@ -231,9 +216,9 @@ module.exports = {
       }
     );
 
-    // InsightsScreen (Schema: USR)
+    // insights_screen
     await queryInterface.createTable(
-      { tableName: "InsightsScreen", schema: "USR" },
+      { tableName: TABLES.INSIGHTS_SCREEN, schema: SCHEMAS.app_non_prod },
       {
         insight_id: {
           type: Sequelize.INTEGER,
@@ -242,10 +227,10 @@ module.exports = {
         },
         insight_title: Sequelize.STRING(255),
         insight_brief: Sequelize.TEXT,
-        insight_faqs: Sequelize.TEXT,
-        insight_anomaly_data_points: Sequelize.TEXT,
-        sql_query: Sequelize.TEXT,
-        data_points: Sequelize.TEXT,
+        insight_faqs: Sequelize.JSONB,
+        insight_anomaly_data_points: Sequelize.JSONB,
+        sql_query: Sequelize.JSONB,
+        data_points: Sequelize.JSONB,
         insight_summary: Sequelize.TEXT,
         insight_visual_link: Sequelize.TEXT,
         status: {
@@ -267,9 +252,9 @@ module.exports = {
       }
     );
 
-    // KPIs (Schema: USR)
+    // kpis
     await queryInterface.createTable(
-      { tableName: "KPIs", schema: "USR" },
+      { tableName: TABLES.KPIS, schema: SCHEMAS.app_non_prod },
       {
         kpi_id: {
           type: Sequelize.INTEGER,
@@ -277,7 +262,7 @@ module.exports = {
           autoIncrement: true,
         },
         kpi: Sequelize.STRING(255),
-        key_action_levers: Sequelize.TEXT,
+        key_action_levers: Sequelize.JSONB,
         home_screen_status: Sequelize.STRING(1),
         automated_insights_status: Sequelize.STRING(1),
         higher_the_better_flag: {
@@ -298,9 +283,9 @@ module.exports = {
       }
     );
 
-    // Workflows (Schema: USR)
+    // workflows
     await queryInterface.createTable(
-      { tableName: "workflows", schema: "USR" },
+      { tableName: TABLES.WORKFLOWS, schema: SCHEMAS.app_non_prod },
       {
         workflow_id: {
           type: Sequelize.STRING(100),
@@ -310,43 +295,46 @@ module.exports = {
         workflow_name: Sequelize.STRING(255),
         created_by: Sequelize.STRING(255),
         timestamp: Sequelize.DATE,
-        metadata: Sequelize.TEXT, // Mapped from TEXT('long')
-        workflow_steps: Sequelize.TEXT, // Mapped from TEXT('long')
+        metadata: Sequelize.TEXT,
+        workflow_steps: Sequelize.TEXT,
       }
     );
 
-    // Conversations (Default Schema / Public)
-    await queryInterface.createTable({ schema: 'DBO', tableName: 'Conversations' }, {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: Sequelize.INTEGER,
-      },
-      user_id: Sequelize.STRING,
-      title: Sequelize.STRING,
-      conversation_metadata: Sequelize.TEXT,
-      created_by: Sequelize.STRING,
-      updated_by: Sequelize.STRING,
-      created_at: {
-        allowNull: false,
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
-      },
-      updated_at: {
-        allowNull: false,
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
-      },
-    });
+    // conversations
+    await queryInterface.createTable(
+      { tableName: TABLES.CONVERSATIONS, schema: SCHEMAS.app_non_prod },
+      {
+        id: {
+          allowNull: false,
+          autoIncrement: true,
+          primaryKey: true,
+          type: Sequelize.INTEGER,
+        },
+        user_id: Sequelize.STRING,
+        title: Sequelize.STRING,
+        conversation_metadata: Sequelize.JSONB,
+        created_by: Sequelize.STRING,
+        updated_by: Sequelize.STRING,
+        created_at: {
+          allowNull: false,
+          type: Sequelize.DATE,
+          defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
+        },
+        updated_at: {
+          allowNull: false,
+          type: Sequelize.DATE,
+          defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
+        },
+      }
+    );
 
     /**
-     * 3. Tables with Foreign Keys (Dependent Tables)
+     * 3. Tables with Foreign Keys
      */
 
-    // UserArtifacts (Schema: dbo)
+    // user_artifacts
     await queryInterface.createTable(
-      { tableName: "user_artifacts", schema: "DBO" },
+      { tableName: TABLES.USER_ARTIFACTS, schema: SCHEMAS.app_non_prod },
       {
         id: {
           type: Sequelize.BIGINT,
@@ -362,8 +350,8 @@ module.exports = {
           allowNull: false,
           references: {
             model: {
-              tableName: "Persona",
-              schema: "USR",
+              tableName: TABLES.PERSONA,
+              schema: SCHEMAS.app_non_prod,
             },
             key: "persona_id",
           },
@@ -381,7 +369,7 @@ module.exports = {
           allowNull: false,
         },
         content: {
-          type: Sequelize.TEXT,
+          type: Sequelize.JSONB,
           allowNull: false,
         },
         created_at: {
@@ -395,10 +383,9 @@ module.exports = {
       }
     );
 
-    // RecommendedQuestions (Schema: USR)
-    // Note: Logic suggests persona_id is an FK, but model didn't define strictly. Added simply.
+    // recommended_questions
     await queryInterface.createTable(
-      { tableName: "RecommendedQuestions", schema: "USR" },
+      { tableName: TABLES.RECOMMENDED_QUESTIONS, schema: SCHEMAS.app_non_prod },
       {
         id: {
           type: Sequelize.INTEGER,
@@ -416,9 +403,9 @@ module.exports = {
       }
     );
 
-    // Tasks (Schema: RGM)
+    // tasks
     await queryInterface.createTable(
-      { tableName: "tasks", schema: "RGM" },
+      { tableName: TABLES.TASKS, schema: SCHEMAS.app_non_prod },
       {
         task_id: {
           type: Sequelize.STRING(64),
@@ -451,109 +438,115 @@ module.exports = {
       }
     );
 
-    // Messages (Default/Public Schema)
-    await queryInterface.createTable({ schema: "DBO", tableName: "Message" }, {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: Sequelize.INTEGER,
-      },
-      conversation_id: {
-        type: Sequelize.INTEGER,
-        references: {
-        model: {
-            tableName: "Conversations",
-            schema: "DBO",
-          },
-          key: "id",
+    // message
+    await queryInterface.createTable(
+      { tableName: TABLES.MESSAGES, schema: SCHEMAS.app_non_prod },
+      {
+        id: {
+          allowNull: false,
+          autoIncrement: true,
+          primaryKey: true,
+          type: Sequelize.INTEGER,
         },
-        onDelete: "CASCADE",
-      },
-      source_msg_id: {
-        type: Sequelize.INTEGER,
-        allowNull: true,
-      },
-      message: {
-        type: Sequelize.TEXT,
-        allowNull: true,
-      },
-      message_type: {
-        type: Sequelize.STRING,
-        allowNull: true,
-      },
-      sender_type: {
-        type: Sequelize.ENUM("user", "chatai"),
-        allowNull: false,
-      },
-      metadata: Sequelize.TEXT,
-      feedback_reaction: Sequelize.STRING,
-      created_by: Sequelize.STRING,
-      updated_by: Sequelize.STRING,
-      created_at: {
-        allowNull: false,
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
-      },
-      updated_at: {
-        allowNull: false,
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
-      },
-    });
+        conversation_id: {
+          type: Sequelize.INTEGER,
+          references: {
+            model: {
+              tableName: TABLES.CONVERSATIONS,
+              schema: SCHEMAS.app_non_prod,
+            },
+            key: "id",
+          },
+          onDelete: "CASCADE",
+        },
+        source_msg_id: {
+          type: Sequelize.INTEGER,
+          allowNull: true,
+        },
+        message: {
+          type: Sequelize.TEXT,
+          allowNull: true,
+        },
+        message_type: {
+          type: Sequelize.STRING,
+          allowNull: true,
+        },
+        sender_type: {
+          type: Sequelize.ENUM("user", "chatai"),
+          allowNull: false,
+        },
+        metadata: Sequelize.TEXT,
+        feedback_reaction: Sequelize.STRING,
+        created_by: Sequelize.STRING,
+        updated_by: Sequelize.STRING,
+        created_at: {
+          allowNull: false,
+          type: Sequelize.DATE,
+          defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
+        },
+        updated_at: {
+          allowNull: false,
+          type: Sequelize.DATE,
+          defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
+        },
+      }
+    );
 
-    // Files (Default/Public Schema)
-    await queryInterface.createTable({ schema: "DBO", tableName: "Files" }, {
-      id: {
-        allowNull: false,
-        autoIncrement: true,
-        primaryKey: true,
-        type: Sequelize.INTEGER,
-      },
-      message_id: {
-        type: Sequelize.INTEGER,
-        references: {
-         model: {
-            tableName: "Message",
-            schema: "DBO",
-          },
-          key: "id",
+    // files
+    await queryInterface.createTable(
+      { tableName: TABLES.FILES, schema: SCHEMAS.app_non_prod },
+      {
+        id: {
+          allowNull: false,
+          autoIncrement: true,
+          primaryKey: true,
+          type: Sequelize.INTEGER,
         },
-        onDelete: "CASCADE",
-      },
-      user_id: Sequelize.STRING,
-      file_url: Sequelize.STRING,
-      file_size: Sequelize.INTEGER,
-      file_type: Sequelize.STRING,
-      file_name: Sequelize.STRING,
-      file_metadata: Sequelize.TEXT,
-      created_by: Sequelize.STRING,
-      updated_by: Sequelize.STRING,
-      created_at: {
-        allowNull: false,
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
-      },
-      updated_at: {
-        allowNull: false,
-        type: Sequelize.DATE,
-        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
-      },
-    });
+        message_id: {
+          type: Sequelize.INTEGER,
+          references: {
+            model: {
+              tableName: TABLES.MESSAGES,
+              schema: SCHEMAS.app_non_prod,
+            },
+            key: "id",
+          },
+          onDelete: "CASCADE",
+        },
+        user_id: Sequelize.STRING,
+        file_url: Sequelize.STRING,
+        file_size: Sequelize.INTEGER,
+        file_type: Sequelize.STRING,
+        file_name: Sequelize.STRING,
+        file_metadata: Sequelize.JSONB,
+        created_by: Sequelize.STRING,
+        updated_by: Sequelize.STRING,
+        created_at: {
+          allowNull: false,
+          type: Sequelize.DATE,
+          defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
+        },
+        updated_at: {
+          allowNull: false,
+          type: Sequelize.DATE,
+          defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
+        },
+      }
+    );
 
     /**
-     * 4. Join Tables / Junction Tables
+     * 4. Join Tables
      */
 
-    // UserAccess (Schema: USR)
+    // user_access
     await queryInterface.createTable(
-      { tableName: "UserAccess", schema: "USR" },
+      { tableName: TABLES.USER_ACCESS, schema: SCHEMAS.app_non_prod },
       {
         industry_id: {
           type: Sequelize.INTEGER,
           primaryKey: true,
           references: {
-            model: { tableName: "Industry", schema: "USR" },
+            model: { tableName: TABLES.INDUSTRY, schema: SCHEMAS.app_non_prod },
             key: "industry_id",
           },
           onDelete: "CASCADE",
@@ -562,7 +555,7 @@ module.exports = {
           type: Sequelize.INTEGER,
           primaryKey: true,
           references: {
-            model: { tableName: "Client", schema: "USR" },
+            model: { tableName: TABLES.CLIENT, schema: SCHEMAS.app_non_prod },
             key: "client_id",
           },
           onDelete: "CASCADE",
@@ -571,7 +564,7 @@ module.exports = {
           type: Sequelize.INTEGER,
           primaryKey: true,
           references: {
-            model: { tableName: "Users", schema: "USR" },
+            model: { tableName: TABLES.USERS, schema: SCHEMAS.app_non_prod },
             key: "user_id",
           },
           onDelete: "CASCADE",
@@ -580,7 +573,7 @@ module.exports = {
           type: Sequelize.INTEGER,
           primaryKey: true,
           references: {
-            model: { tableName: "Persona", schema: "USR" },
+            model: { tableName: TABLES.PERSONA, schema: SCHEMAS.app_non_prod },
             key: "persona_id",
           },
           onDelete: "CASCADE",
@@ -589,7 +582,7 @@ module.exports = {
           type: Sequelize.INTEGER,
           primaryKey: true,
           references: {
-            model: { tableName: "DataSource", schema: "USR" },
+            model: { tableName: TABLES.DATA_SOURCE, schema: SCHEMAS.app_non_prod },
             key: "data_source_id",
           },
           onDelete: "CASCADE",
@@ -599,15 +592,15 @@ module.exports = {
       }
     );
 
-    // HomeScreenPersonaRef (Schema: USR)
+    // home_screen_persona_ref
     await queryInterface.createTable(
-      { tableName: "HomeScreenPersonaRef", schema: "USR" },
+      { tableName: TABLES.HOME_SCREEN_PERSONA_REF, schema: SCHEMAS.app_non_prod },
       {
         persona_id: {
           type: Sequelize.INTEGER,
           primaryKey: true,
           references: {
-            model: { tableName: "Persona", schema: "USR" },
+            model: { tableName: TABLES.PERSONA, schema: SCHEMAS.app_non_prod },
             key: "persona_id",
           },
         },
@@ -615,22 +608,22 @@ module.exports = {
           type: Sequelize.INTEGER,
           primaryKey: true,
           references: {
-            model: { tableName: "HomeScreen", schema: "USR" },
+            model: { tableName: TABLES.HOME_SCREEN, schema: SCHEMAS.app_non_prod },
             key: "visual_id",
           },
         },
       }
     );
 
-    // InsightsScreenPersonaRef (Schema: USR)
+    // insights_screen_persona_ref
     await queryInterface.createTable(
-      { tableName: "InsightsScreenPersonaRef", schema: "USR" },
+      { tableName: TABLES.INSIGHTS_SCREEN_PERSONA_REF, schema: SCHEMAS.app_non_prod },
       {
         persona_id: {
           type: Sequelize.INTEGER,
           primaryKey: true,
           references: {
-            model: { tableName: "Persona", schema: "USR" },
+            model: { tableName: TABLES.PERSONA, schema: SCHEMAS.app_non_prod },
             key: "persona_id",
           },
         },
@@ -638,7 +631,7 @@ module.exports = {
           type: Sequelize.INTEGER,
           primaryKey: true,
           references: {
-            model: { tableName: "InsightsScreen", schema: "USR" },
+            model: { tableName: TABLES.INSIGHTS_SCREEN, schema: SCHEMAS.app_non_prod },
             key: "insight_id",
           },
         },
@@ -647,15 +640,15 @@ module.exports = {
       }
     );
 
-    // PersonaKPIRef (Schema: USR)
+    // persona_kpi_ref
     await queryInterface.createTable(
-      { tableName: "PersonaKPIRef", schema: "USR" },
+      { tableName: TABLES.PERSONA_KPI_REF, schema: SCHEMAS.app_non_prod },
       {
         persona_id: {
           type: Sequelize.INTEGER,
           primaryKey: true,
           references: {
-            model: { tableName: "Persona", schema: "USR" },
+            model: { tableName: TABLES.PERSONA, schema: SCHEMAS.app_non_prod },
             key: "persona_id",
           },
         },
@@ -663,7 +656,7 @@ module.exports = {
           type: Sequelize.INTEGER,
           primaryKey: true,
           references: {
-            model: { tableName: "KPIs", schema: "USR" },
+            model: { tableName: TABLES.KPIS, schema: SCHEMAS.app_non_prod },
             key: "kpi_id",
           },
         },
@@ -680,42 +673,42 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    // Drop tables in reverse order of dependency
-    
+    // Drop tables in reverse order
+
     // Join Tables
-    await queryInterface.dropTable({ tableName: "PersonaKPIRef", schema: "USR" });
-    await queryInterface.dropTable({ tableName: "InsightsScreenPersonaRef", schema: "USR" });
-    await queryInterface.dropTable({ tableName: "HomeScreenPersonaRef", schema: "USR" });
-    await queryInterface.dropTable({ tableName: "UserAccess", schema: "USR" });
-    
+    await queryInterface.dropTable({ tableName: TABLES.PERSONA_KPI_REF, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.INSIGHTS_SCREEN_PERSONA_REF, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.HOME_SCREEN_PERSONA_REF, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.USER_ACCESS, schema: SCHEMAS.app_non_prod });
+
     // Public Tables with FKs
-    await queryInterface.dropTable("Files");
-    await queryInterface.dropTable("Messages");
-    
-    // Drop Enums after tables using them are gone
-    await queryInterface.sequelize.query('DROP TYPE IF EXISTS "enum_Messages_sender_type";');
+    await queryInterface.dropTable({ tableName: TABLES.FILES, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.MESSAGES, schema: SCHEMAS.app_non_prod });
+
+    // Drop Enum (Dynamic name based on schema and table name)
+    const enumName = `"enum_${SCHEMAS.app_non_prod}_${TABLES.MESSAGES}_sender_type"`; 
+    await queryInterface.sequelize.query(`DROP TYPE IF EXISTS ${enumName};`);
 
     // Other Tables
-    await queryInterface.dropTable({ tableName: "tasks", schema: "RGM" });
-    await queryInterface.dropTable({ tableName: "RecommendedQuestions", schema: "USR" });
-    await queryInterface.dropTable({ tableName: "user_artifacts", schema: "DBO" });
-    await queryInterface.dropTable({ tableName: "Conversations", schema: "DBO" });
+    await queryInterface.dropTable({ tableName: TABLES.TASKS, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.RECOMMENDED_QUESTIONS, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.USER_ARTIFACTS, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.CONVERSATIONS, schema: SCHEMAS.app_non_prod });
 
-    
     // Core Tables
-    await queryInterface.dropTable({ tableName: "workflows", schema: "USR" });
-    await queryInterface.dropTable({ tableName: "KPIs", schema: "USR" });
-    await queryInterface.dropTable({ tableName: "InsightsScreen", schema: "USR" });
-    await queryInterface.dropTable({ tableName: "HomeScreen", schema: "USR" });
-    await queryInterface.dropTable({ tableName: "Persona", schema: "USR" });
-    await queryInterface.dropTable({ tableName: "DataSource", schema: "USR" });
-    await queryInterface.dropTable({ tableName: "Industry", schema: "USR" });
-    await queryInterface.dropTable({ tableName: "Client", schema: "USR" });
-    await queryInterface.dropTable({ tableName: "Users", schema: "USR" });
+    await queryInterface.dropTable({ tableName: TABLES.WORKFLOWS, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.KPIS, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.INSIGHTS_SCREEN, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.HOME_SCREEN, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.PERSONA, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.DATA_SOURCE, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.INDUSTRY, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.CLIENT, schema: SCHEMAS.app_non_prod });
+    await queryInterface.dropTable({ tableName: TABLES.USERS, schema: SCHEMAS.app_non_prod });
 
     // Drop Schemas
-    await queryInterface.dropSchema("DBO");
-    await queryInterface.dropSchema("RGM");
-    await queryInterface.dropSchema("USR");
+    await queryInterface.dropSchema(SCHEMAS.app_non_prod);
+    await queryInterface.dropSchema(SCHEMAS.app_non_prod);
+    await queryInterface.dropSchema(SCHEMAS.app_non_prod);
   },
 };
