@@ -13,7 +13,7 @@ const insightController = require("../controllers/dashboardController");
  * Core dashboard routes for immediate loading
  */
 router.get("/homeDashboard", dashboardController.homeDashboard);
-router.get("/homeSummary",  dashboardController.homeSummary);
+router.get("/homeSummary", dashboardController.homeSummary);
 router.get(
   "/insightsDashboard",
   authMiddleware,
@@ -116,7 +116,7 @@ router.get("/powerbi-sdk.js", async (req, res) => {
       "Content-Type": "application/javascript",
       "Access-Control-Allow-Origin": "*", // Or specify your frontend URL for tighter security
       "Cache-Control": "public, max-age=86400, immutable", // Cache for 24h (86400s) for better performance
-      "X-Azure-Cache-Control": "public, max-age=86400",
+      "Vary": "Origin",
       "X-Content-Type-Options": "nosniff",
       "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
     });

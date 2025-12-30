@@ -1,7 +1,7 @@
 const { logger } = require("../utils/logger");
 const { getPowerBIConfig } = require("../config/dashboardMappings");
 const axios = require("axios");
-// const msal = require("@azure/msal-node");
+// const msal = require("@/msal-node");
 const config = require("../config/config");
 
 // Configuration constants - moved from hardcoded values to environment variables

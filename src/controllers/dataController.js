@@ -290,7 +290,7 @@ class DataController {
       });
 
       if (existingWorkflow) {
-        // Use raw query to bypass Sequelize date handling for Azure SQL Server
+        // Use raw query to bypass Sequelize date handling for Az SQL Server
         await sequelize.query(
           `UPDATE [USR].[workflows] 
          SET [workflow_name] = :workflow_name, 
@@ -341,7 +341,7 @@ class DataController {
     } catch (error) {
       console.error("Error saving workflow:", error);
 
-      // Specific error handling for Azure SQL Server errors
+      // Specific error handling for Az SQL Server errors
       if (error.parent) {
         // Date conversion error (SQL Server error 241)
         if (error.parent.number === 241) {
@@ -438,7 +438,7 @@ class DataController {
     } catch (error) {
       console.error("Error getting workflow steps:", error);
 
-      // Enhanced error logging for Azure diagnostics
+      // Enhanced error logging for Az diagnostics
       if (error.parent && error.parent.errors) {
         error.parent.errors.forEach((err) => {
           console.error("SQL Error Detail:", err.message);

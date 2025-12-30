@@ -74,3 +74,31 @@
 // }
 
 // module.exports = { getDBSecrets, NODE_ENV, AWS_REGION };
+
+
+// NEW CODE
+
+require("dotenv").config({ path: `${__dirname}/../../.env` });
+const { S3Client } = require("@aws-sdk/client-s3");
+
+const { AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET_NAME } = process.env;
+
+// If using IAM Roles (e.g. on EC2/ECS), you might not need access keys here.
+// But for explicit config:
+if (!AWS_REGION || !S3_BUCKET_NAME) {
+  throw new Error("Missing AWS_REGION or S3_BUCKET_NAME in .env");
+}
+
+const s3Client = new S3Client({
+  region: AWS_REGION,
+  credentials: (AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) ? {
+    accessKeyId: AWS_ACCESS_KEY_ID,
+    secretAccessKey: AWS_SECRET_ACCESS_KEY,
+  } : undefined, // Let SDK find credentials automatically if not provided
+});
+
+module.exports = {
+  s3Client,
+  bucketName: S3_BUCKET_NAME,
+  AWS_REGION,
+};

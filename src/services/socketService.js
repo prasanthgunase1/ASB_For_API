@@ -319,9 +319,8 @@ async function handleRequestResultUpdate(aiMessageId, update) {
     );
 
     try {
-      const room = `${REDIS_PREFIX}:conversation:${
-        socketState.activeSubscriptions.get(String(aiMessageId))?.conversationId
-      }`;
+      const room = `${REDIS_PREFIX}:conversation:${socketState.activeSubscriptions.get(String(aiMessageId))?.conversationId
+        }`;
       if (room && socketState.io) {
         socketState.io.to(room).emit(SOCKET_EVENTS.ERROR_NOTIFICATION, {
           conversation_id: String(
@@ -388,23 +387,23 @@ function initializeSocketIO(server) {
           console.log("Socket.IO CORS: Allowed origin:", origin);
           return callback(null, true);
         } else {
-          const azurePatterns = [
+          const backendPatterns = [
             /^http:\/\/localhost:\d+$/,
             /^https:\/\/.*\.tigeranalytics\.com$/,
-            /^https:\/\/.*\.azurewebsites\.net$/,
             /^https:\/\/.*\.tigeranalyticstest\.in$/,
             /^https:\/\/deepthought\.tigeranalyticstest\.in\/.*$/,
             /^https:\/\/.*\.powerbi\.com$/,
             /^https:\/\/.*\.microstrategy\.com$/,
             /^https:\/\/.*\.microsoftonline\.com$/,
-            /^https:\/\/.*\.windows\.net$/,
             /^http:\/\/4\.188\.91\.110:\d+$/,
+            /^http:\/\/\d+\.\d+\.\d+\.\d+:\d+$/, // EC2 / internal IP
+            /^http:\/\/.*\.svc\.cluster\.local:\d+$/, // Kubernetes
             /^http:\/\/.*\.deepthought\.svc\.cluster\.local:\d+$/,
           ];
 
-          if (azurePatterns.some((pattern) => pattern.test(origin))) {
+          if (backendPatterns.some((pattern) => pattern.test(origin))) {
             console.log(
-              "Socket.IO CORS: Allowed Azure/Python pattern:",
+              "Socket.IO CORS: Allowed backend/service pattern:",
               origin
             );
             callback(null, true);
@@ -643,7 +642,7 @@ async function cleanupSocketIO() {
     socketState.io = null;
   }
   if (socketState.redisSubscriber?.isOpen) {
-    tasks.push(socketState.redisSubscriber.quit().catch(() => {}));
+    tasks.push(socketState.redisSubscriber.quit().catch(() => { }));
     socketState.redisSubscriber = null;
   }
   socketState.activeSubscriptions.clear();

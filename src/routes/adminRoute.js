@@ -18,7 +18,7 @@ router.post(
 // Database tables (mock data for now)
 router.get("/db-tables", authMiddleware, adminController.getDbTables);
 
-// Users management - updated with Azure AD integration
+// Users management - updated with  AD integration
 router.get("/users", authMiddleware, adminController.getUsers);
 router.get("/users/:userId", authMiddleware, adminController.getUserById);
 router.post("/users", authMiddleware, adminController.updateUser);

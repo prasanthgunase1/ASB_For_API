@@ -33,7 +33,7 @@ const searchInsightsByPersona = async (personaId) => {
       index: indexName,
       body: {
         query: query,
-        _source: ["insight_id", "data"], // Equivalent to Azure 'select'
+        _source: ["insight_id", "data"], // Equivalent to  'select'
         size: 1000 // Equivalent to 'top', adjust as needed
       }
     });

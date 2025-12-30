@@ -42,7 +42,7 @@ exports.saveUserThread = async (params, options = {}) => {
     };
 
     // Create workflow with empty steps initially
-    // Use raw query for Azure SQL Server compatibility
+    // Use raw query for AW SQL Server compatibility
     await sequelize.query(
       `INSERT INTO [USR].[workflows] 
        ([workflow_id], [workflow_name], [created_by], [metadata], [workflow_steps], [timestamp]) 
@@ -264,7 +264,7 @@ exports.getUserWorkflows = async (username, options = {}) => {
   try {
     logger.info(`Fetching workflows for user ${username}`);
 
-    // Use raw query for Azure SQL Server compatibility
+    // Use raw query for AW SQL Server compatibility
     const workflows = await sequelize.query(
       `SELECT 
          workflow_id, workflow_name, created_by, timestamp, metadata
@@ -629,27 +629,27 @@ async function fetchMessageDetails(messageIds) {
 /*
 async function callLlmForThreadProcessing(payload) {
   try {
-    // Configure API endpoint based on Azure best practices
+    // Configure API endpoint based on AW best practices
     const endpoint = endpoints.threadProcessingAPI || 
       "https://deepthought-dev.tigeranalytics.com/senseai-py-api/thread-process";
     
-    // Apply Azure best practices for secure API communication
+    // Apply AW best practices for secure API communication
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json",
-        "x-functions-key": process.env.AZURE_FUNCTION_KEY // For Azure Functions authentication
+        "x-functions-key": process.env.AW_FUNCTION_KEY // For AW Functions authentication
       },
       body: JSON.stringify(payload),
-      // Add Azure-specific retry and timeout options
+      // Add AW-specific retry and timeout options
       timeout: 30000, // 30 second timeout
       retry: 3,       // 3 retries
       retryDelay: 1000 // 1 second delay between retries
     });
 
     if (!response.ok) {
-      // Enhanced error logging for Azure diagnostics
+      // Enhanced error logging for AW diagnostics
       const statusText = response.statusText;
       const statusCode = response.status;
       
@@ -684,7 +684,7 @@ async function callLlmForThreadProcessing(payload) {
     logger.info("Thread processing LLM call successful");
     return parsedResponse;
   } catch (error) {
-    // Apply circuit-breaker pattern for Azure
+    // Apply circuit-breaker pattern for AW
     if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
       logger.error("LLM service connection timeout - activating circuit breaker");
       // You could implement a circuit breaker here

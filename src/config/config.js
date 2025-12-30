@@ -10,7 +10,7 @@ const baseDbConfig = {
   database: process.env.DB_NAME,
   host: process.env.DB_HOST,
   dialect: process.env.DB_DIALECT || "postgres",
-  schema: "USR",
+  schema: "app_non_prod",
   define: {
     timestamps: true,
     underscored: true,
@@ -22,6 +22,7 @@ const baseDbConfig = {
     idle: 10000,
   },
 };
+
 
 // For local 
 const pyURL = process.env.LLM_ENDPOINT || "http://4.188.91.110:8443";
@@ -82,24 +83,54 @@ const modelMappings = {
 };
 
 const schemaMapping = {
-  Task: "RGM",
-  DataSource: "USR",
-  Client: "USR",
-  UserAccess: "USR",
-  Users: "USR",
-  Industry: "USR",
-  Persona: "USR",
-  HomeScreen: "USR",
-  HomeScreenPersonaRef: "USR",
-  Conversation: "USR",
-  Message: "USR",
-  File: "USR",
-  InsightsScreen: "USR",
-  InsightsScreenPersonaRef: "USR",
-  Workflow: "USR",
-  KPI: "USR",
-  PersonaKPIRef: "USR",
+  // ✅ existing core models
+  Task: "app_non_prod",
+  DataSource: "app_non_prod",
+  Client: "app_non_prod",
+  UserAccess: "app_non_prod",
+  Users: "app_non_prod",
+  Industry: "app_non_prod",
+  Persona: "app_non_prod",
+  HomeScreen: "app_non_prod",
+  HomeScreenPersonaRef: "app_non_prod",
+  Conversation: "app_non_prod",
+  Message: "app_non_prod",
+  File: "app_non_prod",
+  Insights: "app_non_prod",                 // insights.js
+  InsightsScreen: "app_non_prod",
+  InsightsScreenPersonaRef: "app_non_prod",
+  Workflow: "app_non_prod",
+  KPI: "app_non_prod",
+  PersonaKPIRef: "app_non_prod",
+  Artifacts: "app_non_prod",
+  RecommendedQuestion: "app_non_prod",
+
+  // ✅ new / ref models based on your 42 tables
+  InsightsHlaRef: "app_non_prod",
+  SqlTemplate: "app_non_prod",
+  KpiRepository: "app_non_prod",
+  KpiActivity: "app_non_prod",
+  InsightsHlg: "app_non_prod",
+  InsightsScreenKpiRef: "app_non_prod",
+  PersonaBiDashboardRef: "app_non_prod",
+  BiDashboard: "app_non_prod",
+  KnownQuestion: "app_non_prod",
+  KpiManagement: "app_non_prod",
+  PersonaDocument: "app_non_prod",
+  TableMetadata: "app_non_prod",
+  AiForBiSummary: "app_non_prod",
+  PersonaDbConnectionRef: "app_non_prod",
+  InsightAnomaly: "app_non_prod",
+  PersonaDocumentsRef: "app_non_prod",
+  DashboardSummary: "app_non_prod",
+  AiForBiUploadedDocument: "app_non_prod",
+  KnownQuestionsPersonaRef: "app_non_prod",
+  UserSqlQuery: "app_non_prod",
+  KpiInfo: "app_non_prod",
+  DbConnection: "app_non_prod",
+  HomeScreenKpiRef: "app_non_prod",
 };
+
 
 const SAS_TOKEN_EXPIRY_HOURS = 10;
 

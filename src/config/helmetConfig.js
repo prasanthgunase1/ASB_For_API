@@ -1,9 +1,13 @@
 const helmet = require("helmet");
 
 /**
- * Helmet Security Configuration for Azure Production Deployment
- * Optimized for PowerBI, MicroStrategy, WebSocket support, and Python APIs
- * @version 3.2.0 - Azure Production Ready with PowerBI Embedding Fix
+ * Helmet Security Configuration for AWS + Okta (NO PowerBI, NO Microsoft Graph, NO Azure domains)
+ *
+ * ✅ Replace these dummy values later:
+ *   - <AWS_API_DOMAIN>          (example: https://api.yourdomain.com)
+ *   - <AWS_APP_DOMAIN>          (example: https://app.yourdomain.com)
+ *   - <OKTA_DOMAIN>             (example: https://dev-123456.okta.com)
+ *   - <S3_BUCKET_ENDPOINT>      (example: https://your-bucket.s3.ap-south-1.amazonaws.com)
  */
 
 module.exports = helmet({
@@ -11,449 +15,238 @@ module.exports = helmet({
     directives: {
       defaultSrc: ["'self'"],
 
+      // -----------------------------
+      // Scripts
+      // -----------------------------
       scriptSrc: [
         "'self'",
-        "'unsafe-inline'", // Required for PowerBI and MicroStrategy dynamic scripts
-        "'unsafe-eval'", // Required for PowerBI SDK and chart libraries
+        "'unsafe-inline'",
+        "'unsafe-eval'",
 
-        // PRODUCTION: Your Azure backend domain
-        "https://deepthought.tigeranalyticstest.in",
+        "<AWS_API_DOMAIN>",
+        "<AWS_APP_DOMAIN>",
 
-        // Python API URLs
+        // Okta
+        "<OKTA_DOMAIN>",
+
+        // Python APIs (keep if you use them)
         "http://4.188.91.110:8443",
         "http://senseai-python-api.deepthought.svc.cluster.local:8443",
         "https://deepthought-dev.tigeranalytics.com/senseai-py-api",
 
-        // CDN resources
+        // CDN (keep if used)
         "https://unpkg.com",
         "https://cdn.jsdelivr.net",
 
-        // PowerBI domains - ENHANCED for embedding fix
-        "https://*.powerbi.com",
-        "https://app.powerbi.com",
-        "https://api.powerbi.com",
-        "https://msit.powerbi.com",
-        "https://powerbi.microsoft.com",
-        "https://*.msecnd.net",
-        "https://*.analysis.windows.net",
-        "*.powerbi.com", // Wildcard format for better compatibility
-        "*.analysis.windows.net",
-        "*.microsoftonline.com",
-        "*.visualstudio.com",
-
-        // Microsoft authentication and services
-        "https://*.microsoftonline.com",
-        "https://login.microsoftonline.com",
-        "https://*.visualstudio.com",
-
-        // MicroStrategy domains
-        "https://*.microstrategy.com",
-        "https://autotrial.microstrategy.com",
-
-        // Azure domains
-        "https://*.azurewebsites.net",
-        "https://*.windows.net",
-
-        // Your organization domains
+        // Org domains (optional)
         "https://*.tigeranalytics.com",
-        "https://sso.deepthought.tigeranalyticstest.in",
-        "https://deepthought-dev.tigeranalytics.com",
 
-        // Office and document viewers
-        "https://view.officeapps.live.com",
-        "https://docs.google.com",
-        "https://play.google.com",
-
-        // Google services
-        "https://*.google.com",
-        "https://*.googleusercontent.com",
-
-        // Blob and data URLs
         "blob:",
         "data:",
 
-        // Development support - conditionally included
         ...(process.env.NODE_ENV === "development"
           ? ["http://localhost:*", "ws://localhost:*"]
           : []),
       ],
 
+      // -----------------------------
+      // Styles
+      // -----------------------------
       styleSrc: [
         "'self'",
-        "'unsafe-inline'", // Required for PowerBI and MicroStrategy dynamic styling
+        "'unsafe-inline'",
 
-        // PRODUCTION: Your Azure backend domain
-        "https://deepthought.tigeranalyticstest.in",
+        "<AWS_API_DOMAIN>",
+        "<AWS_APP_DOMAIN>",
+        "<OKTA_DOMAIN>",
 
-        // Python API URLs for styles
+        // Python APIs
         "http://4.188.91.110:8443",
         "http://senseai-python-api.deepthought.svc.cluster.local:8443",
         "https://deepthought-dev.tigeranalytics.com/senseai-py-api",
 
-        // External stylesheets
+        // CDN
         "https://fonts.googleapis.com",
         "https://unpkg.com",
         "https://cdn.jsdelivr.net",
 
-        // PowerBI styles - ENHANCED
-        "https://*.powerbi.com",
-        "https://*.msecnd.net",
-        "*.powerbi.com", // Wildcard format for better compatibility
-
-        // MicroStrategy styles
-        "https://*.microstrategy.com",
-        "https://autotrial.microstrategy.com",
-
-        // Office and document viewers
-        "https://view.officeapps.live.com",
-        "https://docs.google.com",
-        "https://play.google.com",
-
-        // Google services
-        "https://*.google.com",
-
-        // Your organization domains
         "https://*.tigeranalytics.com",
       ],
 
+      // -----------------------------
+      // Fonts
+      // -----------------------------
       fontSrc: [
         "'self'",
         "data:",
 
-        // PRODUCTION: Your Azure backend domain
-        "https://deepthought.tigeranalyticstest.in",
+        "<AWS_APP_DOMAIN>",
 
-        // Python API URLs for fonts
+        // Python APIs
         "http://4.188.91.110:8443",
         "http://senseai-python-api.deepthought.svc.cluster.local:8443",
         "https://deepthought-dev.tigeranalytics.com/senseai-py-api",
 
-        // Google Fonts
         "https://fonts.gstatic.com",
         "https://fonts.googleapis.com",
 
-        // PowerBI fonts - ENHANCED
-        "https://*.powerbi.com",
-        "https://*.msecnd.net",
-        "*.powerbi.com", // Wildcard format for better compatibility
-
-        // MicroStrategy fonts
-        "https://*.microstrategy.com",
-
-        // Your organization domains
         "https://*.tigeranalytics.com",
       ],
 
+      // -----------------------------
+      // Images (include S3)
+      // -----------------------------
       imgSrc: [
         "'self'",
         "data:",
         "blob:",
-        "https:", // Allow all HTTPS images for PowerBI compatibility
+        "https:",
 
-        // PRODUCTION: Your Azure backend domain
-        "https://deepthought.tigeranalyticstest.in",
+        "<AWS_APP_DOMAIN>",
+        "<AWS_API_DOMAIN>",
 
-        // Python API URLs for images
+        // Python APIs
         "http://4.188.91.110:8443",
         "http://senseai-python-api.deepthought.svc.cluster.local:8443",
         "https://deepthought-dev.tigeranalytics.com/senseai-py-api",
 
-        // Azure and Windows services
-        "https://*.windows.net",
-        "https://*.azurewebsites.net",
-        "https://*.blob.core.windows.net",
-        "https://devdeepthoughtstorage.blob.core.windows.net",
+        // AWS S3 (exact bucket endpoint goes here)
+        "<S3_BUCKET_ENDPOINT>",
+        "https://*.amazonaws.com",
+        "https://s3.amazonaws.com",
 
-        // PowerBI images and assets - ENHANCED
-        "https://*.powerbi.com",
-        "https://*.msecnd.net",
-        "https://*.microsoftonline.com",
-        "*.powerbi.com",
-        "*.msecnd.net",
-
-        // MicroStrategy images
-        "https://*.microstrategy.com",
-        "https://autotrial.microstrategy.com",
-
-        // Office and document viewers
-        "https://view.officeapps.live.com",
-        "https://docs.google.com",
-        "https://play.google.com",
-
-        // Google services
-        "https://*.google.com",
-        "https://*.googleusercontent.com",
-
-        // Your organization and development tools
         "https://*.tigeranalytics.com",
-        "https://*.visualstudio.com",
-
-        // Fonts and external assets
-        "https://fonts.gstatic.com",
       ],
 
+      // -----------------------------
+      // API / Fetch / WebSocket (include Okta + S3)
+      // -----------------------------
       connectSrc: [
         "'self'",
         "blob:",
 
-        // CRITICAL: Your production backend domain with WebSocket support
-        "https://deepthought.tigeranalyticstest.in",
-        "wss://deepthought.tigeranalyticstest.in",
+        "<AWS_API_DOMAIN>",
+        "<AWS_APP_DOMAIN>",
 
-        "https://graph.microsoft.com",
+        // If you use socket.io on same domain:
+        "wss://<AWS_API_DOMAIN>",
+        "wss://<AWS_APP_DOMAIN>",
 
-        // Python API connections - CRITICAL FOR YOUR USE CASE
+        // Okta token / auth calls
+        "<OKTA_DOMAIN>",
+
+        // Python APIs
         "http://4.188.91.110:8443",
         "http://senseai-python-api.deepthought.svc.cluster.local:8443",
         "https://deepthought-dev.tigeranalytics.com/senseai-py-api",
         "wss://deepthought-dev.tigeranalytics.com",
 
-        // Azure and Windows services
-        "https://*.windows.net",
-        "https://*.azurewebsites.net",
-        "https://*.blob.core.windows.net",
-        "https://devdeepthoughtstorage.blob.core.windows.net",
+        // AWS S3
+        "<S3_BUCKET_ENDPOINT>",
+        "https://*.amazonaws.com",
+        "https://s3.amazonaws.com",
 
-        // PowerBI API connections - CRITICAL FOR EMBEDDING FIX
-        "https://api.powerbi.com",
-        "https://app.powerbi.com",
-        "https://*.powerbi.com",
-        "https://analysis.windows.net",
-        "https://*.analysis.windows.net",
-        "*.powerbi.com", // Wildcard format for better compatibility
-        "*.analysis.windows.net",
-        "*.microsoftonline.com",
-
-        // Microsoft authentication and services
-        "https://*.microsoftonline.com",
-        "https://login.microsoftonline.com",
-        "https://*.visualstudio.com",
-
-        // MicroStrategy connections
-        "https://*.microstrategy.com",
-        "https://autotrial.microstrategy.com",
-
-        // Your organization domains
-        "https://*.tigeranalytics.com",
-        "https://sso.deepthought.tigeranalyticstest.in",
-        "https://deepthought-dev.tigeranalytics.com",
-
-        // Office and external services
-        "https://view.officeapps.live.com",
-        "https://docs.google.com",
-        "https://*.google.com",
-        "https://play.google.com",
+        // CDN
         "https://unpkg.com",
         "https://cdn.jsdelivr.net",
 
-        // WebSocket support for real-time features - Azure optimized
-        "wss://*.tigeranalytics.com",
-        "wss://*.azurewebsites.net",
+        // WebSockets (generic)
         "wss:",
         "ws:",
 
-        // Development support - conditionally included
         ...(process.env.NODE_ENV === "development"
           ? ["http://localhost:*", "ws://localhost:*", "wss://localhost:*"]
           : []),
       ],
 
-      // CRITICAL: PowerBI iframe embedding - ENHANCED for hanging fix
+      // -----------------------------
+      // Frames (Okta login pages / hosted sign-in)
+      // -----------------------------
       frameSrc: [
         "'self'",
+        "<AWS_APP_DOMAIN>",
+        "<OKTA_DOMAIN>",
 
-        // PRODUCTION: Your Azure backend domain
-        "https://deepthought.tigeranalyticstest.in",
-
-        // Python API frame sources (if needed for iframe embedding)
+        // Python APIs (only if you iframe them)
         "http://4.188.91.110:8443",
         "http://senseai-python-api.deepthought.svc.cluster.local:8443",
         "https://deepthought-dev.tigeranalytics.com/senseai-py-api",
 
-        // PowerBI iframe embedding - CRITICAL FOR EMBEDDING FIX
-        "https://app.powerbi.com",
-        "https://*.powerbi.com",
-        "https://msit.powerbi.com",
-        "https://powerbi.microsoft.com",
-        "*.powerbi.com", // Wildcard format for better compatibility
-        "*.analysis.windows.net",
-        "*.microsoftonline.com",
-
-        // Microsoft authentication
-        "https://*.microsoftonline.com",
-        "https://login.microsoftonline.com",
-
-        // MicroStrategy iframe embedding
-        "https://*.microstrategy.com",
-        "https://autotrial.microstrategy.com",
-
-        // Your organization SSO and domains
-        "https://sso.deepthought.tigeranalyticstest.in",
-        "https://*.tigeranalytics.com",
-        "https://deepthought-dev.tigeranalytics.com",
-
-        // Office and document viewers
-        "https://view.officeapps.live.com",
-        "https://docs.google.com",
-        "https://play.google.com",
-        "https://*.google.com",
-
-        // Azure services
-        "https://*.azurewebsites.net",
-        "https://*.windows.net",
-
-        // Blob support for file viewing
         "blob:",
       ],
 
-      // CRITICAL: Allow embedding PowerBI - ENHANCED for hanging fix
-      frameAncestors: [
-        "'self'",
+      // -----------------------------
+      // Who can embed YOUR site
+      // -----------------------------
+      frameAncestors: ["'self'", "<AWS_APP_DOMAIN>"],
 
-        // Allow embedding in your organization's domains
-        "https://sso.deepthought.tigeranalyticstest.in",
-        "https://*.tigeranalytics.com",
-        "https://deepthought.tigeranalyticstest.in",
-        "*.tigeranalytics.com",
-        "*.tigeranalyticstest.in",
+      objectSrc: ["'none'"],
 
-        // PowerBI embedding contexts - CRITICAL
-        "https://app.powerbi.com",
-        "https://*.powerbi.com",
-        "*.powerbi.com",
-
-        // Office and document viewers
-        "https://view.officeapps.live.com",
-        "https://docs.google.com",
-        "https://play.google.com",
-
-        // Azure services
-        "https://*.azurewebsites.net",
-      ],
-
-      objectSrc: ["'none'"], // Security best practice - prevents plugin execution
-
+      // -----------------------------
+      // Media (include S3)
+      // -----------------------------
       mediaSrc: [
         "'self'",
         "blob:",
         "data:",
+        "<AWS_APP_DOMAIN>",
 
-        // PRODUCTION: Your Azure backend domain
-        "https://deepthought.tigeranalyticstest.in",
-
-        // Python API media sources
+        // Python APIs
         "http://4.188.91.110:8443",
         "http://senseai-python-api.deepthought.svc.cluster.local:8443",
         "https://deepthought-dev.tigeranalytics.com/senseai-py-api",
 
-        // Azure Storage for media files
-        "https://*.windows.net",
-        "https://*.blob.core.windows.net",
-        "https://devdeepthoughtstorage.blob.core.windows.net",
-
-        // PowerBI media content
-        "https://*.powerbi.com",
-        "https://*.msecnd.net",
-
-        // Your organization domains
-        "https://*.tigeranalytics.com",
+        // AWS S3
+        "<S3_BUCKET_ENDPOINT>",
+        "https://*.amazonaws.com",
+        "https://s3.amazonaws.com",
       ],
 
-      workerSrc: [
-        "'self'",
-        "blob:",
+      workerSrc: ["'self'", "blob:", "https://unpkg.com", "https://cdn.jsdelivr.net"],
 
-        // Python API worker sources (if using web workers)
-        "http://4.188.91.110:8443",
-        "http://senseai-python-api.deepthought.svc.cluster.local:8443",
-        "https://deepthought-dev.tigeranalytics.com/senseai-py-api",
-
-        // CDN workers
-        "https://unpkg.com",
-        "https://cdn.jsdelivr.net",
-        "https://docs.google.com",
-
-        // PowerBI workers
-        "https://*.powerbi.com",
-
-        // Your production domain
-        "https://deepthought.tigeranalyticstest.in",
-      ],
-
+      // -----------------------------
+      // Form posts (include Okta if needed)
+      // -----------------------------
       formAction: [
         "'self'",
-        // Allow form submissions to your backend
-        "https://deepthought.tigeranalyticstest.in",
-        // Authentication endpoints
-        "https://sso.deepthought.tigeranalyticstest.in",
-        "https://*.microsoftonline.com",
-        "https://login.microsoftonline.com",
-
-        // Python API form actions (if forms submit to Python APIs)
-        "http://4.188.91.110:8443",
-        "http://senseai-python-api.deepthought.svc.cluster.local:8443",
-        "https://deepthought-dev.tigeranalytics.com/senseai-py-api",
+        "<AWS_APP_DOMAIN>",
+        "<AWS_API_DOMAIN>",
+        "<OKTA_DOMAIN>",
       ],
 
-      // Additional security directives for modern browsers
       manifestSrc: ["'self'"],
       baseUri: ["'self'"],
 
-      // Child source for compatibility
-      childSrc: [
-        "'self'",
-        "blob:",
-        "https://deepthought.tigeranalyticstest.in",
+      childSrc: ["'self'", "blob:"],
 
-        // Python API child sources
-        "http://4.188.91.110:8443",
-        "http://senseai-python-api.deepthought.svc.cluster.local:8443",
-        "https://deepthought-dev.tigeranalytics.com/senseai-py-api",
-
-        "https://*.powerbi.com",
-        "https://*.microstrategy.com",
-      ],
-
-      // CRITICAL: Upgrade insecure requests only in production
       upgradeInsecureRequests:
         process.env.NODE_ENV === "production" ? [] : null,
     },
   },
 
-  // CRITICAL: Cross-origin policies essential for PowerBI embedding fix
-  crossOriginResourcePolicy: {
-    policy: "cross-origin", // Required for PowerBI and MicroStrategy embedding
-  },
+  // Keep permissive for cross-origin asset loads (S3/CDN/Python)
+  crossOriginResourcePolicy: { policy: "cross-origin" },
 
-  // CRITICAL: Disable for PowerBI embedding - ESSENTIAL FOR FIXING HANGING
+  // If you face issues with embedding / wasm / some libs, set false
   crossOriginEmbedderPolicy: false,
 
-  crossOriginOpenerPolicy: {
-    policy: "same-origin-allow-popups", // Required for authentication flows
-  },
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
 
-  // Security headers
   xssFilter: true,
   noSniff: true,
-  ieNoOpen: true, // Prevents IE from opening downloads in the context of your site
+  ieNoOpen: true,
 
-  // Referrer policy for privacy while maintaining functionality
-  referrerPolicy: {
-    policy: "strict-origin-when-cross-origin",
-  },
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
 
-  // HSTS configuration for HTTPS enforcement - Azure optimized
   hsts: {
-    maxAge: 31536000, // 1 year
+    maxAge: 31536000,
     includeSubDomains: true,
     preload: true,
   },
 
-  // Additional security headers
-  hidePoweredBy: true, // Hide Express.js signature
-  dnsPrefetchControl: { allow: false }, // Disable DNS prefetching for privacy
+  hidePoweredBy: true,
+  dnsPrefetchControl: { allow: false },
 
-  // Permissions Policy for enhanced security (modern browsers)
   permissionsPolicy: {
     features: {
       geolocation: ["'none'"],
@@ -464,31 +257,23 @@ module.exports = helmet({
       magnetometer: ["'none'"],
       gyroscope: ["'none'"],
       accelerometer: ["'none'"],
-      autoplay: ["'self'"], // Allow autoplay for PowerBI videos
+      autoplay: ["'self'"],
       battery: ["'none'"],
-      fullscreen: ["'self'"], // Allow fullscreen for dashboards
+      fullscreen: ["'self'"],
       gamepad: ["'none'"],
       midi: ["'none'"],
       notifications: ["'none'"],
-      payment: ["'none'"],
-      speaker: ["'self'"], // Allow audio for PowerBI reports
-      "sync-xhr": ["'none'"], // Block synchronous XHR for performance
+      speaker: ["'self'"],
+      "sync-xhr": ["'none'"],
       vibrate: ["'none'"],
       "web-share": ["'none'"],
       "xr-spatial-tracking": ["'none'"],
     },
   },
 
-  // Azure-specific optimizations
-  hpkp: false, // Disable HPKP as Azure handles certificate pinning
+  hpkp: false,
 
-  // Content type options
-  contentTypeOptions: {
-    nosniff: true,
-  },
+  contentTypeOptions: { nosniff: true },
 
-  // Frame options for Azure deployment - ADJUSTED for PowerBI
-  frameguard: {
-    action: "sameorigin",
-  },
+  frameguard: { action: "sameorigin" },
 });

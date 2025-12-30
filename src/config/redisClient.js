@@ -2,15 +2,25 @@ const { redisConfig } = require("./config");
 const { createClient } = require("redis");
 const { logger } = require("../utils/logger");
 
-// For regular Redis operations (Socket.IO, tracking client, etc)
+/**
+ * Create a Redis client for:
+ * - Socket.IO adapter
+ * - Pub/Sub
+ * - General Redis operations
+ *
+ * Compatible with:
+ * - AWS ElastiCache
+ * - AWS MemoryDB
+ * - Docker / self-hosted Redis
+ */
 const createRedisClient = async () => {
   try {
-    // Build connection config for Azure Redis Cache
+    // Build connection config (cloud-agnostic)
     const connectionConfig = {
       socket: {
         host: redisConfig.host,
         port: redisConfig.port,
-        tls: redisConfig.enableTLS,
+        tls: redisConfig.enableTLS || false,
         reconnectStrategy: (retries) => Math.min(retries * 50, 1000),
       },
       password: redisConfig.password,
@@ -39,7 +49,7 @@ const createRedisClient = async () => {
       logger.warn("Redis client connection closed");
     });
 
-    // Add more debug-focused handlers during development
+    // Extra debug logs for non-production environments
     if (process.env.NODE_ENV !== "production") {
       client.on("message", (channel, message) => {
         logger.debug(
@@ -63,7 +73,10 @@ const createRedisClient = async () => {
   }
 };
 
-// For BullMQ (Worker/Queue) - Returns a connection configuration object
+/**
+ * Redis connection config for BullMQ (queues/workers)
+ * Works with AWS ElastiCache / MemoryDB
+ */
 function createBullMQConnection() {
   return {
     host: redisConfig.host,

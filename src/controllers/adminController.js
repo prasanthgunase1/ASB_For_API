@@ -8,12 +8,20 @@ const {
 } = require("../db/models");
 const { logger } = require("../utils/logger");
 const { Op } = require("sequelize");
-const {
-  powerBIMappings,
-  microStrategyMappings,
-} = require("../config/dashboardMappings");
-// Azure AD service removed – system now uses Okta + local DB only
-// const azureAdService = require("../services/azureAdService");
+
+/**
+ * Small helper (same idea like your dashboardroutes headers)
+ * Use cache="no-store" for user/secure endpoints, cache="public, max-age=86400" for config endpoints.
+ */
+function setAwsJsonHeaders(res, cache = "no-store") {
+  res.set({
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
+    "Cache-Control": cache,
+    "X-Content-Type-Options": "nosniff",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  });
+}
 
 /**
  * Get all personas for the authenticated user or filtered by industry
@@ -21,6 +29,8 @@ const {
  */
 exports.getPersonas = async (req, res, next) => {
   try {
+    setAwsJsonHeaders(res, "no-store");
+
     const { industryId } = req.query;
     const username = req.user?.username;
 
@@ -31,13 +41,11 @@ exports.getPersonas = async (req, res, next) => {
       });
     }
 
-    // Base query options
     const queryOptions = {
       include: [],
       order: [["persona", "ASC"]],
     };
 
-    // If industryId is provided, filter personas by industryId through UserAccess
     if (industryId) {
       queryOptions.include.push({
         model: UserAccess,
@@ -48,70 +56,54 @@ exports.getPersonas = async (req, res, next) => {
       });
     }
 
-    // Fetch all personas
     const personas = await Persona.findAll(queryOptions);
 
-    // Map to desired output format with safe JSON parsing
     const formattedPersonas = personas.map((persona) => {
       let parsedKPIs = [];
       let parsedHomeSummary = null;
 
-      // Safely parse KPIs with improved validation
       if (persona.KPIs) {
         try {
-          // Convert to string and trim whitespace
           const kpisStr = String(persona.KPIs).trim();
-
-          // Check if it looks like JSON before parsing
           if (
             (kpisStr.startsWith("{") && kpisStr.endsWith("}")) ||
             (kpisStr.startsWith("[") && kpisStr.endsWith("]"))
           ) {
             parsedKPIs = JSON.parse(kpisStr);
           } else {
-            // If it doesn't look like JSON, use as a plain value
             parsedKPIs = [{ name: "KPI", value: kpisStr }];
             logger.debug(
               `KPIs for persona ${persona.persona_id} is not in JSON format`
             );
           }
         } catch (error) {
-          // Downgrade to debug level since we're handling this gracefully
           logger.debug(
             `Error parsing KPIs for persona ${persona.persona_id}:`,
             error
           );
-          // Fallback: Treat the raw string as a single KPI value
           parsedKPIs = [{ name: "KPI", value: String(persona.KPIs) }];
         }
       }
 
-      // Safely parse home_exec_summary with similar validation
       if (persona.home_exec_summary) {
         try {
-          // Convert to string and trim whitespace
           const summaryStr = String(persona.home_exec_summary).trim();
-
-          // Check if it looks like JSON before parsing
           if (
             (summaryStr.startsWith("{") && summaryStr.endsWith("}")) ||
             (summaryStr.startsWith("[") && summaryStr.endsWith("]"))
           ) {
             parsedHomeSummary = JSON.parse(summaryStr);
           } else {
-            // If it doesn't look like JSON, use as plain content
             parsedHomeSummary = { content: summaryStr };
             logger.debug(
               `home_exec_summary for persona ${persona.persona_id} is not in JSON format`
             );
           }
         } catch (error) {
-          // Downgrade to debug level
           logger.debug(
             `Error parsing home_exec_summary for persona ${persona.persona_id}:`,
             error
           );
-          // Fallback: Use the raw string as summary content
           parsedHomeSummary = { content: String(persona.home_exec_summary) };
         }
       }
@@ -145,6 +137,8 @@ exports.getPersonas = async (req, res, next) => {
 exports.updatePersona = async (req, res, next) => {
   const transaction = await sequelize.transaction();
   try {
+    setAwsJsonHeaders(res, "no-store");
+
     const {
       id,
       name,
@@ -154,6 +148,7 @@ exports.updatePersona = async (req, res, next) => {
       insightsSummary,
       industryId,
     } = req.body;
+
     const username = req.user?.username;
 
     if (!username) {
@@ -180,9 +175,6 @@ exports.updatePersona = async (req, res, next) => {
       });
     }
 
-    let persona;
-
-    // Format data for database with safe JSON stringification
     const personaData = {
       persona: name,
       persona_context: context || null,
@@ -191,30 +183,28 @@ exports.updatePersona = async (req, res, next) => {
       insights_exec_summary: insightsSummary || null,
     };
 
+    let personaRecord;
+
     if (id) {
-      persona = await Persona.findByPk(id, { transaction });
-      if (!persona) {
+      personaRecord = await Persona.findByPk(id, { transaction });
+      if (!personaRecord) {
         await transaction.rollback();
         return res.status(404).json({
           success: false,
           message: "Persona not found",
         });
       }
-
-      // Update the persona
-      await persona.update(personaData, { transaction });
+      await personaRecord.update(personaData, { transaction });
     } else {
-      // Create new persona
-      persona = await Persona.create(personaData, { transaction });
+      personaRecord = await Persona.create(personaData, { transaction });
 
-      // Create persona-industry link in UserAccess
       await UserAccess.create(
         {
-          persona_id: persona.persona_id,
+          persona_id: personaRecord.persona_id,
           industry_id: industryId,
-          client_id: 0, // Default value, adjust as needed
-          user_id: 0, // Default value, adjust as needed
-          data_source_id: 0, // Default value, adjust as needed
+          client_id: 0,
+          user_id: 0,
+          data_source_id: 0,
         },
         { transaction }
       );
@@ -222,19 +212,18 @@ exports.updatePersona = async (req, res, next) => {
 
     await transaction.commit();
 
-    // Safely parse the KPIs and homeSummary for the response
     let parsedKPIs = [];
     let parsedHomeSummary = null;
 
     try {
-      parsedKPIs = persona.KPIs ? JSON.parse(persona.KPIs) : [];
+      parsedKPIs = personaRecord.KPIs ? JSON.parse(personaRecord.KPIs) : [];
     } catch (error) {
       logger.warn(`Failed to parse KPIs for response: ${error.message}`);
     }
 
     try {
-      parsedHomeSummary = persona.home_exec_summary
-        ? JSON.parse(persona.home_exec_summary)
+      parsedHomeSummary = personaRecord.home_exec_summary
+        ? JSON.parse(personaRecord.home_exec_summary)
         : null;
     } catch (error) {
       logger.warn(
@@ -244,19 +233,17 @@ exports.updatePersona = async (req, res, next) => {
 
     return res.json({
       success: true,
-      message: id
-        ? "Persona updated successfully"
-        : "Persona created successfully",
+      message: id ? "Persona updated successfully" : "Persona created successfully",
       data: {
-        id: persona.persona_id,
-        name: persona.persona,
-        context: persona.persona_context,
+        id: personaRecord.persona_id,
+        name: personaRecord.persona,
+        context: personaRecord.persona_context,
         KPIs: parsedKPIs,
         homeSummary: parsedHomeSummary,
-        insightsSummary: persona.insights_exec_summary,
-        createdAt: persona.created_at,
-        updatedAt: persona.updated_at,
-        industryId: parseInt(industryId),
+        insightsSummary: personaRecord.insights_exec_summary,
+        createdAt: personaRecord.created_at,
+        updatedAt: personaRecord.updated_at,
+        industryId: parseInt(industryId, 10),
       },
     });
   } catch (error) {
@@ -267,14 +254,15 @@ exports.updatePersona = async (req, res, next) => {
 };
 
 /**
- * Get all BI dashboard configurations
+ * ✅ BI dashboards disabled (PowerBI + MicroStrategy removed)
+ * Keep the endpoint so frontend/routes won’t break.
  * @route GET /api/admin/bi-dashboards
  */
 exports.getBiDashboards = async (req, res, next) => {
   try {
-    const username = req.user?.username;
-    const { industryId } = req.query;
+    setAwsJsonHeaders(res, "public, max-age=86400");
 
+    const username = req.user?.username;
     if (!username) {
       return res.status(401).json({
         success: false,
@@ -282,65 +270,10 @@ exports.getBiDashboards = async (req, res, next) => {
       });
     }
 
-    // Combine PowerBI and MicroStrategy configurations
-    const biDashboards = [];
-
-    // Process PowerBI mappings
-    Object.entries(powerBIMappings)
-      .filter(([id]) => !industryId || id === industryId)
-      .forEach(([industryIdKey, industryMappings]) => {
-        Object.entries(industryMappings).forEach(
-          ([personaKey, personaConfig]) => {
-            biDashboards.push({
-              id: `powerbi-${industryIdKey}-${personaKey}`,
-              name: `PowerBI - Industry ${industryIdKey} - ${
-                personaKey === "default"
-                  ? "All Personas"
-                  : `Persona ${personaKey}`
-              }`,
-              type: "powerbi",
-              industryId: parseInt(industryIdKey),
-              personaId:
-                personaKey === "default" ? null : parseInt(personaKey),
-              config: personaConfig,
-            });
-          }
-        );
-      });
-
-    // Process MicroStrategy mappings
-    Object.entries(microStrategyMappings)
-      .filter(([id]) => !industryId || id === industryId)
-      .forEach(([industryIdKey, industryMappings]) => {
-        Object.entries(industryMappings).forEach(
-          ([personaKey, personaConfig]) => {
-            biDashboards.push({
-              id: `microstrategy-${industryIdKey}-${personaKey}`,
-              name: `MicroStrategy - Industry ${industryIdKey} - ${
-                personaKey === "default"
-                  ? "All Personas"
-                  : `Persona ${personaKey}`
-              }`,
-              type: "microstrategy",
-              industryId: parseInt(industryIdKey),
-              personaId:
-                personaKey === "default" ? null : parseInt(personaKey),
-              config: personaConfig,
-            });
-          }
-        );
-      });
-
-    // Sort by type, then industry, then persona
-    biDashboards.sort((a, b) => {
-      if (a.industryId !== b.industryId) return a.industryId - b.industryId;
-      if (a.type !== b.type) return a.type.localeCompare(b.type);
-      return (a.personaId || 0) - (b.personaId || 0);
-    });
-
     return res.json({
       success: true,
-      data: biDashboards,
+      data: [],
+      message: "BI dashboards are disabled (PowerBI/MicroStrategy removed).",
     });
   } catch (error) {
     logger.error("Error fetching BI dashboards:", error);
@@ -349,14 +282,14 @@ exports.getBiDashboards = async (req, res, next) => {
 };
 
 /**
- * Create or update a BI dashboard configuration
+ * ✅ BI dashboards update disabled
  * @route POST /api/admin/bi-dashboards
  */
 exports.updateBiDashboard = async (req, res, next) => {
   try {
-    const { id, type, industryId, personaId, config, name } = req.body;
-    const username = req.user?.username;
+    setAwsJsonHeaders(res, "no-store");
 
+    const username = req.user?.username;
     if (!username) {
       return res.status(401).json({
         success: false,
@@ -364,35 +297,9 @@ exports.updateBiDashboard = async (req, res, next) => {
       });
     }
 
-    if (!type || !industryId || !config) {
-      return res.status(400).json({
-        success: false,
-        message: "Type, industryId, and config are required",
-      });
-    }
-
-    // NOTE: In a real implementation, this would modify the dashboardMappings.js file
-    // or update a database table. For this example, we'll just return success.
-    logger.info(
-      `Dashboard update requested for ${type} in industry ${industryId}`
-    );
-
-    // For simplicity, we'll return the updated config as if it was saved
-    return res.json({
-      success: true,
-      message: "Dashboard configuration updated successfully",
-      data: {
-        id: id || `${type}-${industryId}-${personaId || "default"}`,
-        type,
-        industryId: parseInt(industryId),
-        personaId: personaId ? parseInt(personaId) : null,
-        name:
-          name ||
-          `${type} - Industry ${industryId} - ${
-            personaId ? `Persona ${personaId}` : "All Personas"
-          }`,
-        config,
-      },
+    return res.status(501).json({
+      success: false,
+      message: "BI dashboards are disabled (PowerBI/MicroStrategy removed).",
     });
   } catch (error) {
     logger.error("Error updating BI dashboard:", error);
@@ -406,6 +313,8 @@ exports.updateBiDashboard = async (req, res, next) => {
  */
 exports.getDbTables = async (req, res, next) => {
   try {
+    setAwsJsonHeaders(res, "public, max-age=86400");
+
     const { industryId } = req.query;
     const username = req.user?.username;
 
@@ -416,8 +325,6 @@ exports.getDbTables = async (req, res, next) => {
       });
     }
 
-    // This is mock data - in a real implementation, we would fetch from database
-    // or call a service that provides this information
     const mockTables = [
       {
         id: "1",
@@ -430,132 +337,15 @@ exports.getDbTables = async (req, res, next) => {
           { name: "SaleID", type: "INT", nullable: false, isPrimary: true },
           { name: "Date", type: "DATE", nullable: false, isPrimary: false },
           { name: "ProductID", type: "INT", nullable: false, isPrimary: false },
-          {
-            name: "CustomerID",
-            type: "INT",
-            nullable: false,
-            isPrimary: false,
-          },
+          { name: "CustomerID", type: "INT", nullable: false, isPrimary: false },
           { name: "Quantity", type: "INT", nullable: false, isPrimary: false },
-          {
-            name: "Price",
-            type: "DECIMAL(10,2)",
-            nullable: false,
-            isPrimary: false,
-          },
-        ],
-      },
-      {
-        id: "2",
-        name: "CUSTOMER",
-        schema: "DBO",
-        industryId: 1,
-        description: "Contains customer information",
-        rowCount: 50000,
-        columns: [
-          { name: "CustomerID", type: "INT", nullable: false, isPrimary: true },
-          {
-            name: "Name",
-            type: "VARCHAR(100)",
-            nullable: false,
-            isPrimary: false,
-          },
-          {
-            name: "Email",
-            type: "VARCHAR(100)",
-            nullable: true,
-            isPrimary: false,
-          },
-          {
-            name: "Phone",
-            type: "VARCHAR(20)",
-            nullable: true,
-            isPrimary: false,
-          },
-          {
-            name: "Address",
-            type: "VARCHAR(255)",
-            nullable: true,
-            isPrimary: false,
-          },
-        ],
-      },
-      {
-        id: "3",
-        name: "PRODUCT",
-        schema: "DBO",
-        industryId: 1,
-        description: "Contains product information",
-        rowCount: 10000,
-        columns: [
-          { name: "ProductID", type: "INT", nullable: false, isPrimary: true },
-          {
-            name: "Name",
-            type: "VARCHAR(100)",
-            nullable: false,
-            isPrimary: false,
-          },
-          {
-            name: "Category",
-            type: "VARCHAR(50)",
-            nullable: false,
-            isPrimary: false,
-          },
-          {
-            name: "Price",
-            type: "DECIMAL(10,2)",
-            nullable: false,
-            isPrimary: false,
-          },
-          {
-            name: "InStock",
-            type: "BOOLEAN",
-            nullable: false,
-            isPrimary: false,
-          },
-        ],
-      },
-      {
-        id: "4",
-        name: "CLAIMS",
-        schema: "DBO",
-        industryId: 2,
-        description: "Contains insurance claims data",
-        rowCount: 750000,
-        columns: [
-          { name: "ClaimID", type: "INT", nullable: false, isPrimary: true },
-          { name: "PatientID", type: "INT", nullable: false, isPrimary: false },
-          {
-            name: "ProviderID",
-            type: "INT",
-            nullable: false,
-            isPrimary: false,
-          },
-          {
-            name: "ServiceDate",
-            type: "DATE",
-            nullable: false,
-            isPrimary: false,
-          },
-          {
-            name: "Amount",
-            type: "DECIMAL(10,2)",
-            nullable: false,
-            isPrimary: false,
-          },
-          {
-            name: "Status",
-            type: "VARCHAR(20)",
-            nullable: false,
-            isPrimary: false,
-          },
+          { name: "Price", type: "DECIMAL(10,2)", nullable: false, isPrimary: false },
         ],
       },
     ];
 
-    // Filter tables by industryId if provided
     const filteredTables = industryId
-      ? mockTables.filter((table) => table.industryId === parseInt(industryId))
+      ? mockTables.filter((table) => table.industryId === parseInt(industryId, 10))
       : mockTables;
 
     return res.json({
@@ -569,17 +359,19 @@ exports.getDbTables = async (req, res, next) => {
 };
 
 /**
- * Get users with access to the system - now DB only (Azure AD removed)
+ * Get users with access to the system - DB only
  * @route GET /api/admin/users
  */
 exports.getUsers = async (req, res, next) => {
   try {
+    setAwsJsonHeaders(res, "no-store");
+
     const { page = 1, limit = 50, search } = req.query;
     const numericLimit = Number(limit) || 50;
     const numericPage = Number(page) || 1;
     const offset = (numericPage - 1) * numericLimit;
-    const username = req.user?.username;
 
+    const username = req.user?.username;
     if (!username) {
       return res.status(401).json({
         success: false,
@@ -587,17 +379,15 @@ exports.getUsers = async (req, res, next) => {
       });
     }
 
-    // DB-only search condition
     const searchCondition = search
       ? {
-          [Op.or]: [
-            { name: { [Op.like]: `%${search}%` } },
-            { email: { [Op.like]: `%${search}%` } },
-          ],
-        }
+        [Op.or]: [
+          { name: { [Op.like]: `%${search}%` } },
+          { email: { [Op.like]: `%${search}%` } },
+        ],
+      }
       : {};
 
-    // Fetch users from DB
     const users = await Users.findAndCountAll({
       where: searchCondition,
       offset,
@@ -616,44 +406,38 @@ exports.getUsers = async (req, res, next) => {
       ],
     });
 
-    // Same formatting logic as your old DB fallback
     const processedUsers = await Promise.all(
-      users.rows.map(async (user) => {
-        const userJson = user.toJSON ? user.toJSON() : user;
+      users.rows.map(async (userRow) => {
+        const userJson = userRow.toJSON ? userRow.toJSON() : userRow;
 
         if (userJson.UserAccesses) {
           const industries = [];
 
-          userJson.UserAccesses.forEach((access) => {
+          userJson.UserAccesses.forEach((accessRow) => {
+            const industryFromAccess = accessRow.Industry;
+            const personaFromAccess = accessRow.Persona;
+
             const existingIndustry = industries.find(
-              (ind) => ind.id === access.Industry?.industry_id
+              (ind) => ind.id === industryFromAccess?.industry_id
             );
 
-            if (access.Industry) {
+            if (industryFromAccess) {
               if (existingIndustry) {
-                // Add persona if not already present
                 if (
-                  access.Persona &&
-                  !existingIndustry.personas.some(
-                    (p) => p.id === access.Persona?.persona_id
-                  )
+                  personaFromAccess &&
+                  !existingIndustry.personas.some((p) => p.id === personaFromAccess?.persona_id)
                 ) {
                   existingIndustry.personas.push({
-                    id: access.Persona.persona_id,
-                    name: access.Persona.persona,
+                    id: personaFromAccess.persona_id,
+                    name: personaFromAccess.persona,
                   });
                 }
               } else {
                 industries.push({
-                  id: access.Industry.industry_id,
-                  name: access.Industry.industry_name,
-                  personas: access.Persona
-                    ? [
-                        {
-                          id: access.Persona.persona_id,
-                          name: access.Persona.persona,
-                        },
-                      ]
+                  id: industryFromAccess.industry_id,
+                  name: industryFromAccess.industry_name,
+                  personas: personaFromAccess
+                    ? [{ id: personaFromAccess.persona_id, name: personaFromAccess.persona }]
                     : [],
                 });
               }
@@ -675,7 +459,7 @@ exports.getUsers = async (req, res, next) => {
       page: numericPage,
       limit: numericLimit,
       totalPages: Math.ceil(users.count / numericLimit),
-      source: "database", // keep `source` field but now always DB
+      source: "database",
     });
   } catch (error) {
     logger.error("Error fetching users:", error);
@@ -690,6 +474,8 @@ exports.getUsers = async (req, res, next) => {
 exports.updateUser = async (req, res, next) => {
   const transaction = await sequelize.transaction();
   try {
+    setAwsJsonHeaders(res, "no-store");
+
     const { id, email, name, industries } = req.body;
     const username = req.user?.username;
 
@@ -709,27 +495,23 @@ exports.updateUser = async (req, res, next) => {
       });
     }
 
-    let user;
+    let userRecord;
 
-    // Check if this is an update or create operation
     if (id) {
-      // Check if this looks like an Azure AD GUID – prevent accidental edits of legacy AD users
-      const isAzureADId = id.match(
+      const isAWADId = id.match(
         /^[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}$/
       );
 
-      if (isAzureADId) {
+      if (isAWADId) {
         await transaction.rollback();
         return res.status(400).json({
           success: false,
-          message: "Azure AD users must be updated in the Azure portal",
+          message: "Legacy Azure AD users cannot be edited here",
         });
       }
 
-      // Update existing database user
-      user = await Users.findByPk(id, { transaction });
-
-      if (!user) {
+      userRecord = await Users.findByPk(id, { transaction });
+      if (!userRecord) {
         await transaction.rollback();
         return res.status(404).json({
           success: false,
@@ -737,19 +519,12 @@ exports.updateUser = async (req, res, next) => {
         });
       }
 
-      // Update user properties
-      await user.update(
-        {
-          email,
-          name,
-          updated_at: new Date(),
-          updated_by: username,
-        },
+      await userRecord.update(
+        { email, name, updated_at: new Date(), updated_by: username },
         { transaction }
       );
     } else {
-      // Create new database user
-      user = await Users.create(
+      userRecord = await Users.create(
         {
           email,
           name,
@@ -762,43 +537,38 @@ exports.updateUser = async (req, res, next) => {
       );
     }
 
-    // Handle industry and persona relationships if provided
     if (industries && Array.isArray(industries)) {
-      // Remove existing access records for this user
       await UserAccess.destroy({
-        where: { user_id: user.user_id },
+        where: { user_id: userRecord.user_id },
         transaction,
       });
 
-      // Add new access records
-      for (const industry of industries) {
-        if (industry.id) {
-          const personas = industry.personas || [];
+      for (const industryItem of industries) {
+        if (!industryItem?.id) continue;
 
-          for (const persona of personas) {
-            if (persona.id) {
-              await UserAccess.create(
-                {
-                  user_id: user.user_id,
-                  industry_id: industry.id,
-                  persona_id: persona.id,
-                  client_id: industry.clientId || 1, // Default to clientId 1 if not specified
-                  data_source_id: 1, // Default data source ID
-                  created_at: new Date(),
-                  updated_at: new Date(),
-                },
-                { transaction }
-              );
-            }
-          }
+        const personasList = industryItem.personas || [];
+        for (const personaItem of personasList) {
+          if (!personaItem?.id) continue;
+
+          await UserAccess.create(
+            {
+              user_id: userRecord.user_id,
+              industry_id: industryItem.id,
+              persona_id: personaItem.id,
+              client_id: industryItem.clientId || 1,
+              data_source_id: 1,
+              created_at: new Date(),
+              updated_at: new Date(),
+            },
+            { transaction }
+          );
         }
       }
     }
 
     await transaction.commit();
 
-    // Fetch the user again with their relationships to return complete data
-    const updatedUser = await Users.findByPk(user.user_id, {
+    const updatedUser = await Users.findByPk(userRecord.user_id, {
       include: [
         {
           model: UserAccess,
@@ -812,40 +582,35 @@ exports.updateUser = async (req, res, next) => {
       ],
     });
 
-    // Process user data to add formatted industries
     const userJson = updatedUser.toJSON();
     const formattedIndustries = [];
 
     if (userJson.UserAccesses) {
-      userJson.UserAccesses.forEach((access) => {
+      userJson.UserAccesses.forEach((accessRow) => {
+        const industryFromAccess = accessRow.Industry;
+        const personaFromAccess = accessRow.Persona;
+
         const existingIndustry = formattedIndustries.find(
-          (ind) => ind.id === access.Industry?.industry_id
+          (ind) => ind.id === industryFromAccess?.industry_id
         );
 
-        if (access.Industry) {
+        if (industryFromAccess) {
           if (existingIndustry) {
             if (
-              access.Persona &&
-              !existingIndustry.personas.some(
-                (p) => p.id === access.Persona?.persona_id
-              )
+              personaFromAccess &&
+              !existingIndustry.personas.some((p) => p.id === personaFromAccess?.persona_id)
             ) {
               existingIndustry.personas.push({
-                id: access.Persona.persona_id,
-                name: access.Persona.persona,
+                id: personaFromAccess.persona_id,
+                name: personaFromAccess.persona,
               });
             }
           } else {
             formattedIndustries.push({
-              id: access.Industry.industry_id,
-              name: access.Industry.industry_name,
-              personas: access.Persona
-                ? [
-                    {
-                      id: access.Persona.persona_id,
-                      name: access.Persona.persona,
-                    },
-                  ]
+              id: industryFromAccess.industry_id,
+              name: industryFromAccess.industry_name,
+              personas: personaFromAccess
+                ? [{ id: personaFromAccess.persona_id, name: personaFromAccess.persona }]
                 : [],
             });
           }
@@ -869,11 +634,13 @@ exports.updateUser = async (req, res, next) => {
 };
 
 /**
- * Get a specific user by ID - DB only (Azure AD removed)
+ * Get a specific user by ID - DB only
  * @route GET /api/admin/users/:userId
  */
 exports.getUserById = async (req, res, next) => {
   try {
+    setAwsJsonHeaders(res, "no-store");
+
     const { userId } = req.params;
     const username = req.user?.username;
 
@@ -911,35 +678,31 @@ exports.getUserById = async (req, res, next) => {
     const formattedIndustries = [];
 
     if (userJson.UserAccesses) {
-      userJson.UserAccesses.forEach((access) => {
+      userJson.UserAccesses.forEach((accessRow) => {
+        const industryFromAccess = accessRow.Industry;
+        const personaFromAccess = accessRow.Persona;
+
         const existingIndustry = formattedIndustries.find(
-          (ind) => ind.id === access.Industry?.industry_id
+          (ind) => ind.id === industryFromAccess?.industry_id
         );
 
-        if (access.Industry) {
+        if (industryFromAccess) {
           if (existingIndustry) {
             if (
-              access.Persona &&
-              !existingIndustry.personas.some(
-                (p) => p.id === access.Persona?.persona_id
-              )
+              personaFromAccess &&
+              !existingIndustry.personas.some((p) => p.id === personaFromAccess?.persona_id)
             ) {
               existingIndustry.personas.push({
-                id: access.Persona.persona_id,
-                name: access.Persona.persona,
+                id: personaFromAccess.persona_id,
+                name: personaFromAccess.persona,
               });
             }
           } else {
             formattedIndustries.push({
-              id: access.Industry.industry_id,
-              name: access.Industry.industry_name,
-              personas: access.Persona
-                ? [
-                    {
-                      id: access.Persona.persona_id,
-                      name: access.Persona.persona,
-                    },
-                  ]
+              id: industryFromAccess.industry_id,
+              name: industryFromAccess.industry_name,
+              personas: personaFromAccess
+                ? [{ id: personaFromAccess.persona_id, name: personaFromAccess.persona }]
                 : [],
             });
           }
@@ -968,6 +731,8 @@ exports.getUserById = async (req, res, next) => {
 exports.resetUserAccess = async (req, res, next) => {
   const transaction = await sequelize.transaction();
   try {
+    setAwsJsonHeaders(res, "no-store");
+
     const { userId } = req.params;
     const adminUsername = req.user?.username;
 
@@ -979,17 +744,8 @@ exports.resetUserAccess = async (req, res, next) => {
       });
     }
 
-    if (!userId) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: "User ID is required",
-      });
-    }
-
-    // Check if user exists
-    const user = await Users.findByPk(userId, { transaction });
-    if (!user) {
+    const userRecord = await Users.findByPk(userId, { transaction });
+    if (!userRecord) {
       await transaction.rollback();
       return res.status(404).json({
         success: false,
@@ -997,7 +753,6 @@ exports.resetUserAccess = async (req, res, next) => {
       });
     }
 
-    // Delete all user access entries
     const deletedCount = await UserAccess.destroy({
       where: { user_id: userId },
       transaction,
@@ -1008,10 +763,7 @@ exports.resetUserAccess = async (req, res, next) => {
     return res.json({
       success: true,
       message: `User access reset successfully. ${deletedCount} access entries removed.`,
-      data: {
-        userId,
-        entriesRemoved: deletedCount,
-      },
+      data: { userId, entriesRemoved: deletedCount },
     });
   } catch (error) {
     await transaction.rollback();
@@ -1026,8 +778,9 @@ exports.resetUserAccess = async (req, res, next) => {
  */
 exports.getSystemStatus = async (req, res, next) => {
   try {
-    const username = req.user?.username;
+    setAwsJsonHeaders(res, "no-store");
 
+    const username = req.user?.username;
     if (!username) {
       return res.status(401).json({
         success: false,
@@ -1035,7 +788,6 @@ exports.getSystemStatus = async (req, res, next) => {
       });
     }
 
-    // Test database connection
     let databaseStatus = "disconnected";
     try {
       await sequelize.authenticate();
@@ -1045,40 +797,29 @@ exports.getSystemStatus = async (req, res, next) => {
       databaseStatus = "error";
     }
 
-    // Azure AD integration removed – mark as disabled in status
-    const azureAdStatus = "disabled";
-    const azureAdDetails = {
-      message:
-        "Azure AD / Microsoft Graph integration is disabled. System uses Okta + local DB.",
+    // ✅ Azure AD removed
+    const externalDirectoryStatus = "disabled";
+    const externalDirectoryDetails = {
+      message: "Azure AD / Microsoft Graph integration is disabled. System uses Okta + local DB.",
       error: null,
     };
 
-    // Simplified BI services status check
-    const biServicesStatus = "online"; // Could be enhanced with actual checks
+    // ✅ BI disabled
+    const biServicesStatus = "disabled";
 
-    // Get uptime in hours
     const uptime = Math.floor(process.uptime() / 3600);
-
-    // Get node version
     const nodeVersion = process.version;
-
-    // Get disk usage (simplified)
-    const diskUsage = 65; // Placeholder – can be replaced with actual check
 
     return res.json({
       success: true,
       data: {
         apiServerStatus: "online",
         databaseStatus,
-        azureAdStatus,
-        azureAdDetails,
+        externalDirectoryStatus,
+        externalDirectoryDetails,
         biServicesStatus,
-        metrics: {
-          diskUsage,
-        },
-        versions: {
-          nodeVersion,
-        },
+        metrics: { diskUsage: 65 },
+        versions: { nodeVersion },
         uptime,
       },
     });
@@ -1094,6 +835,8 @@ exports.getSystemStatus = async (req, res, next) => {
  */
 exports.getRecentActivities = async (req, res, next) => {
   try {
+    setAwsJsonHeaders(res, "no-store");
+
     const username = req.user?.username;
     const { industryId } = req.query;
 
@@ -1104,79 +847,30 @@ exports.getRecentActivities = async (req, res, next) => {
       });
     }
 
-    // Mock data for recent activities
-    // In a real implementation, these would come from a database table
     const mockActivities = [
       {
-        id: "act1",
+        id: "act-001",
         type: "user_login",
-        timestamp: new Date(Date.now() - 5 * 60000).toISOString(),
-        user: "admin@example.com",
+        timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+        user: "user@demo.com",
         details: {
-          ip: "192.168.1.100",
-          browser: "Chrome 98.0.4758.102",
+          ip: "0.0.0.0",          // neutral / non-real IP
+          browser: "Chrome",
         },
         industryId: 1,
-      },
-      {
-        id: "act2",
-        type: "dashboard_refresh",
-        timestamp: new Date(Date.now() - 15 * 60000).toISOString(),
-        user: "analyst@example.com",
-        details: {
-          dashboardId: "dashboard123",
-          duration: "2.5s",
-        },
-        industryId: 1,
-      },
-      {
-        id: "act3",
-        type: "user_created",
-        timestamp: new Date(Date.now() - 120 * 60000).toISOString(),
-        user: "admin@example.com",
-        details: {
-          newUser: "newuser@example.com",
-        },
-        industryId: 2,
-      },
-      {
-        id: "act4",
-        type: "report_exported",
-        timestamp: new Date(Date.now() - 180 * 60000).toISOString(),
-        user: "manager@example.com",
-        details: {
-          reportId: "report456",
-          format: "PDF",
-          pages: 15,
-        },
-        industryId: 2,
-      },
-      {
-        id: "act5",
-        type: "system_error",
-        timestamp: new Date(Date.now() - 240 * 60000).toISOString(),
-        user: "system",
-        details: {
-          error: "Database connection timeout",
-          component: "DataService",
-        },
-        industryId: null, // System-wide error
       },
     ];
 
-    // Filter by industryId if provided
+
     const filteredActivities = industryId
       ? mockActivities.filter(
-          (activity) =>
-            activity.industryId === parseInt(industryId) ||
-            activity.industryId === null
-        )
+        (activity) =>
+          activity.industryId === parseInt(industryId, 10) ||
+          activity.industryId === null
+      )
       : mockActivities;
 
-    return res.json({
-      success: true,
-      data: filteredActivities,
-    });
+    return res.json({ success: true, data: filteredActivities });
   } catch (error) {
     logger.error("Error fetching recent activities:", error);
     next(error);
@@ -1189,6 +883,8 @@ exports.getRecentActivities = async (req, res, next) => {
  */
 exports.getAppConfig = async (req, res, next) => {
   try {
+    setAwsJsonHeaders(res, "public, max-age=86400");
+
     const username = req.user?.username;
     const { industryId } = req.query;
 
@@ -1199,8 +895,6 @@ exports.getAppConfig = async (req, res, next) => {
       });
     }
 
-    // Mock application configuration data
-    // In a real implementation, this would come from a database or configuration files
     const mockConfig = {
       general: {
         appName: "DeepThought Insights Platform",
@@ -1214,48 +908,22 @@ exports.getAppConfig = async (req, res, next) => {
         enableRealTimeUpdates: true,
       },
       security: {
-        sessionTimeout: 3600, // seconds
+        sessionTimeout: 3600,
         maxLoginAttempts: 5,
-        passwordPolicy: {
-          minLength: 8,
-          requireNumbers: true,
-          requireSpecialChars: true,
-          requireUppercase: true,
-          expiryDays: 90,
-        },
       },
       industries: [
-        {
-          id: 1,
-          name: "CPG",
-          settings: {
-            defaultDashboard: "overview",
-            refreshInterval: 15, // minutes
-          },
-        },
-        {
-          id: 2,
-          name: "Pharma",
-          settings: {
-            defaultDashboard: "sales",
-            refreshInterval: 30, // minutes
-          },
-        },
+        { id: 1, name: "CPG", settings: { defaultDashboard: "overview" } },
+        { id: 2, name: "Pharma", settings: { defaultDashboard: "sales" } },
       ],
     };
 
-    // Filter by industryId if provided
     if (industryId) {
-      const filteredIndustries = mockConfig.industries.filter(
-        (industry) => industry.id === parseInt(industryId)
+      mockConfig.industries = mockConfig.industries.filter(
+        (industry) => industry.id === parseInt(industryId, 10)
       );
-      mockConfig.industries = filteredIndustries;
     }
 
-    return res.json({
-      success: true,
-      data: mockConfig,
-    });
+    return res.json({ success: true, data: mockConfig });
   } catch (error) {
     logger.error("Error fetching application configuration:", error);
     next(error);
@@ -1268,6 +936,8 @@ exports.getAppConfig = async (req, res, next) => {
  */
 exports.updateAppConfig = async (req, res, next) => {
   try {
+    setAwsJsonHeaders(res, "no-store");
+
     const { config } = req.body;
     const username = req.user?.username;
 
@@ -1285,11 +955,8 @@ exports.updateAppConfig = async (req, res, next) => {
       });
     }
 
-    // In a real implementation, this would validate and update the configuration
-    // in database or configuration files
     logger.info(`Config update requested by ${username}:`, config);
 
-    // Return the updated config as if it was saved
     return res.json({
       success: true,
       message: "Configuration updated successfully",
