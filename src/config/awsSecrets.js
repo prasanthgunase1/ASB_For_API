@@ -96,52 +96,83 @@
 //   AWS_REGION,
 // };
 
-// NEW CODE 
+// //POSTGRES NEW CODE 
+// require("dotenv").config({ path: `${__dirname}/../../.env` });
+// const { SecretsManagerClient, GetSecretValueCommand } = require("@aws-sdk/client-secrets-manager");
+// const { logger } = require("../utils/logger");
+
+// const NODE_ENV = process.env.NODE_ENV || "development";
+// const AWS_REGION = process.env.AWS_REGION || "us-east-1";
+// const AWS_SECRET_NAME = process.env.AWS_SECRET_NAME;
+
+// if (!AWS_SECRET_NAME) {
+//   throw new Error("[awsSecrets] AWS_SECRET_NAME is not set in environment variables.");
+// }
+
+// const client = new SecretsManagerClient({ region: AWS_REGION });
+// let cachedSecrets = null;
+
+// async function getDBSecrets(forceRefresh = false) {
+//   if (!forceRefresh && cachedSecrets) return cachedSecrets;
+
+//   try {
+//     logger.info(`[awsSecrets] Fetching secret: ${AWS_SECRET_NAME} in ${AWS_REGION}`);
+//     const command = new GetSecretValueCommand({ SecretId: AWS_SECRET_NAME });
+//     const response = await client.send(command);
+
+//     if (!response || !response.SecretString) {
+//       throw new Error("SecretString is null or undefined.");
+//     }
+
+//     const secrets = JSON.parse(response.SecretString);
+//     const requiredKeys = ["username", "password", "host", "dbname"];
+//     const missing = requiredKeys.filter((k) => !secrets[k]);
+
+//     if (missing.length) {
+//       throw new Error(`[awsSecrets] Secret is missing required keys: ${missing.join(", ")}`);
+//     }
+
+//     if (NODE_ENV !== "production") {
+//       logger.info(`[awsSecrets] DB secrets loaded. Keys: ${Object.keys(secrets).join(", ")}`);
+//     }
+
+//     cachedSecrets = secrets;
+//     return secrets;
+//   } catch (err) {
+//     logger.error(`[awsSecrets] Failed to fetch secrets: ${err.message}`);
+//     throw err;
+//   }
+// }
+
+// module.exports = { getDBSecrets, NODE_ENV, AWS_REGION };
+
+// SNOWFLAKE CODE
 require("dotenv").config({ path: `${__dirname}/../../.env` });
 const { SecretsManagerClient, GetSecretValueCommand } = require("@aws-sdk/client-secrets-manager");
-const { logger } = require("../utils/logger");
 
-const NODE_ENV = process.env.NODE_ENV || "development";
-const AWS_REGION = process.env.AWS_REGION || "us-east-1";
-const AWS_SECRET_NAME = process.env.AWS_SECRET_NAME;
+let cache = null;
 
-if (!AWS_SECRET_NAME) {
-  throw new Error("[awsSecrets] AWS_SECRET_NAME is not set in environment variables.");
-}
+async function getSnowflakeSecret() {
+  if (cache) return cache;
 
-const client = new SecretsManagerClient({ region: AWS_REGION });
-let cachedSecrets = null;
+  const region = process.env.AWS_REGION || "us-east-2";
+  const secretId = process.env.SNOWFLAKE_SECRET_NAME;
 
-async function getDBSecrets(forceRefresh = false) {
-  if (!forceRefresh && cachedSecrets) return cachedSecrets;
-
-  try {
-    logger.info(`[awsSecrets] Fetching secret: ${AWS_SECRET_NAME} in ${AWS_REGION}`);
-    const command = new GetSecretValueCommand({ SecretId: AWS_SECRET_NAME });
-    const response = await client.send(command);
-
-    if (!response || !response.SecretString) {
-      throw new Error("SecretString is null or undefined.");
-    }
-
-    const secrets = JSON.parse(response.SecretString);
-    const requiredKeys = ["username", "password", "host", "dbname"];
-    const missing = requiredKeys.filter((k) => !secrets[k]);
-
-    if (missing.length) {
-      throw new Error(`[awsSecrets] Secret is missing required keys: ${missing.join(", ")}`);
-    }
-
-    if (NODE_ENV !== "production") {
-      logger.info(`[awsSecrets] DB secrets loaded. Keys: ${Object.keys(secrets).join(", ")}`);
-    }
-
-    cachedSecrets = secrets;
-    return secrets;
-  } catch (err) {
-    logger.error(`[awsSecrets] Failed to fetch secrets: ${err.message}`);
-    throw err;
+  if (!secretId) {
+    throw new Error("SNOWFLAKE_SECRET_NAME is missing in env");
   }
+
+  const client = new SecretsManagerClient({ region });
+  const cmd = new GetSecretValueCommand({ SecretId: secretId });
+
+  const resp = await client.send(cmd);
+
+  if (!resp || !resp.SecretString) {
+    throw new Error("SecretString is empty from AWS Secrets Manager");
+  }
+
+  cache = JSON.parse(resp.SecretString);
+  return cache;
 }
 
-module.exports = { getDBSecrets, NODE_ENV, AWS_REGION };
+module.exports = { getSnowflakeSecret };

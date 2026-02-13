@@ -146,7 +146,7 @@ async function initialize() {
     const bullMQConfig = createBullMQConnection();
 
     const worker = new Worker(
-      "agent-task-queue",
+      "{agent-task-queue}",
       async (job) => {
         const jobName = job.name;
         logger.info(`Processing job ${job.id} with name: ${jobName}`);

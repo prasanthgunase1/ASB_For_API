@@ -13,11 +13,24 @@ exports.addMessage = async (req, res, next) => {
       metadata,
       currentPage,
     } = req.body;
-    const files = req.files; // Files uploaded using multer
-    const llmPayload = JSON.parse(req.body.llmPayload);
+    
+    const files = req.files || []; // Ensure files is at least an empty array
 
-    // Get WebSocket instances from app
-    //const { io, sendResponse } = req.app.get("socket");
+    // Robust parsing for llmPayload (handles both multipart/form-data strings and JSON body objects)
+    let llmPayload = {};
+    if (req.body.llmPayload) {
+      if (typeof req.body.llmPayload === "string") {
+        try {
+          llmPayload = JSON.parse(req.body.llmPayload);
+        } catch (e) {
+          const error = new Error("Invalid JSON in llmPayload");
+          error.statusCode = statusCodes.BAD_REQUEST;
+          throw error;
+        }
+      } else {
+        llmPayload = req.body.llmPayload;
+      }
+    }
 
     // Validate sender_type
     if (sender_type === "chatai") {
@@ -29,6 +42,8 @@ exports.addMessage = async (req, res, next) => {
     }
 
     // Prepare message data for the user's message
+    // Note: We pass plain objects here. The Service layer handles 
+    // stringifying 'metadata' and 'details' for Snowflake TEXT columns.
     const userMessageData = {
       conversation_id,
       source_msg_id: source_msg_id || null,
@@ -40,7 +55,7 @@ exports.addMessage = async (req, res, next) => {
       details: {
         conversation_id,
         currentPage,
-        files,
+        files, // Pass file info to details for debugging/logging if needed
         topic: message,
         llmPayload,
       },

@@ -4,8 +4,9 @@ const chataiController = require('./chatAiController');
 
 exports.getAll = async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page) || parseInt(process.env.DEFAULT_PAGE);
-    const limit = parseInt(req.query.limit) || parseInt(process.env.DEFAULT_LIMIT);
+    const page = parseInt(req.query.page) || parseInt(process.env.DEFAULT_PAGE || 1);
+    const limit = parseInt(req.query.limit) || parseInt(process.env.DEFAULT_LIMIT || 10);
+
     // Pass the query parameters and logged-in user's ID to the service
     const data = await service.getAll(req.params.model, {
       page,
@@ -13,9 +14,17 @@ exports.getAll = async (req, res, next) => {
       context: { user: req.user },
       filters: req.query,
     });
-    // If no data is found, return an empty array
-    const items = data ? data.rows : [];
-    const totalItems = data ? data.count : 0;
+
+    // --- SNOWFLAKE COMPATIBILITY CHANGE ---
+    // Handle if 'data' is a raw array (Snowflake) or a structured object (Service/Sequelize)
+    // This prevents the code from crashing if data.rows is undefined.
+    const items = Array.isArray(data) ? data : (data && data.rows ? data.rows : []);
+    
+    // Calculate total items. If 'count' exists (from Service), use it. 
+    // Otherwise fallback to the length of the current page (raw array).
+    const totalItems = (data && data.count !== undefined) ? data.count : items.length;
+    // --------------------------------------
+
     res.status(statusCodes.SUCCESS).json({
       status: statusCodes.SUCCESS,
       success: true,
@@ -80,15 +89,23 @@ exports.create = async (req, res, next) => {
 exports.update = async (req, res, next) => {
   try {
     const dataToUpdate = { ...req.body };
-    // Remove any ID fields from dataToUpdate:
-    delete dataToUpdate.id;
-    delete dataToUpdate.userId;
+    
+    // --- SNOWFLAKE COMPATIBILITY CHANGE ---
+    // Snowflake columns are often Case Sensitive or UPPERCASE.
+    // We must ensure we strip the Primary Key so we don't try to update it.
+    delete dataToUpdate.id;       // Lowercase (standard JS)
+    delete dataToUpdate.ID;       // Uppercase (Snowflake standard)
+    delete dataToUpdate.userId;   // CamelCase
+    delete dataToUpdate.USER_ID;  // Snake Case (Database standard)
+    // --------------------------------------
+
     const data = await service.update(
       req.params.model,
       req.params.id,
       dataToUpdate,
       { context: { user: req.user } }
     );
+
     if (!data) {
       const error = new Error("Record not found");
       error.statusCode = statusCodes.NOT_FOUND;

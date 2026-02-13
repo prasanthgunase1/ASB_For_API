@@ -6,7 +6,7 @@ const paginationRules = {
       options: { min: 1 },
       errorMessage: "page must be a positive integer",
     },
-    toInt: true, // Sanitize to integer
+    toInt: true, // Pagination page numbers are small, so toInt is safe here
   },
   limit: {
     in: ["query"],
@@ -15,26 +15,27 @@ const paginationRules = {
       options: { min: 1, max: 100 },
       errorMessage: "limit must be a positive integer between 1 and 100",
     },
-    toInt: true, // Sanitize to integer
+    toInt: true, // Limit is small (max 100), so toInt is safe here
   },
 };
 
 module.exports = {
-  //GET by id validation rule
+  // GET by id validation rule
   get_id: {
     id: {
       in: ["params"],
       optional: true,
-      isInt: {
-        errorMessage: "ID must be an integer",
+      // Change: Ensure it is a valid number string, but DO NOT convert to JS Number
+      isNumeric: {
+        errorMessage: "ID must be a numeric value",
       },
-      toInt: true,
+      // REMOVED: toInt: true (Prevents BigInt corruption)
     },
   },
 
-  //Get all data validation rules
+  // Get all data validation rules
   get_all: {
-    ...paginationRules, // Include pagination rules
+    ...paginationRules,
   },
 
   // Create conversation validation rules
@@ -73,10 +74,11 @@ module.exports = {
   update: {
     id: {
       in: ["params"],
-      isInt: {
-        errorMessage: "id must be an integer",
+      // Change: Validate as numeric string to handle Snowflake BigInts
+      isNumeric: {
+        errorMessage: "id must be a numeric value",
       },
-      toInt: true, // Sanitize to integer
+      // REMOVED: toInt: true
     },
     user_id: {
       in: ["body"],
@@ -110,10 +112,11 @@ module.exports = {
   delete: {
     id: {
       in: ["params"],
-      isInt: {
-        errorMessage: "ID must be an integer",
+      // Change: Validate as numeric string
+      isNumeric: {
+        errorMessage: "ID must be a numeric value",
       },
-      toInt: true,
+      // REMOVED: toInt: true
     },
   },
 };

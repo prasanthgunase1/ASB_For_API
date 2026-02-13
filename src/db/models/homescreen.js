@@ -25,7 +25,7 @@ module.exports = (sequelize, DataTypes) => {
       visual_summary: DataTypes.STRING(500),
       visual_type: DataTypes.STRING(100),
       current_value: DataTypes.STRING(50),
-      is_positive_trend: DataTypes.BOOLEAN,
+      is_positive_trend: DataTypes.INTEGER,
       percent_change: DataTypes.FLOAT,
       period_type: DataTypes.STRING(50),
       data_points: DataTypes.JSONB,

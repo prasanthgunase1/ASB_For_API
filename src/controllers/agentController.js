@@ -4,17 +4,25 @@ const statusCodes = require("../utils/statusCodes");
 const { logger } = require("../utils/logger");
 const { getSendResponse } = require("../services/socketService");
 
+// --- HELPER: Set Standard API Headers ---
+function setAwsJsonHeaders(res) {
+  res.set({
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+  });
+}
+
 /**
  * Fallback endpoint for checking task statuses when WebSockets are unavailable
  * Maintains backward compatibility while primarily supporting WebSocket architecture
- *
- * @param {Request} req - Express request object with tasks in body
- * @param {Response} res - Express response object
- * @param {Function} next - Express next middleware function
  */
 exports.checkTaskStatus = async (req, res, next) => {
   try {
-    logger.info("Fallback task status check endpoint called");
+    setAwsJsonHeaders(res);
+    // logger.info("Fallback task status check endpoint called");
     const { tasks } = req.body;
 
     if (!Array.isArray(tasks)) {
@@ -24,20 +32,21 @@ exports.checkTaskStatus = async (req, res, next) => {
     }
 
     // Call service to check task statuses
+    // Note: agentService should use the refactored repository to query Snowflake
     const results = await service.checkTaskStatuses(tasks, {
       context: { user: req.user },
     });
 
     // After checking statuses, attempt to send updates via WebSocket
-    // This allows the fallback mechanism to integrate with the WebSocket architecture
     try {
       const sendResponse = getSendResponse();
 
       if (sendResponse && Array.isArray(results)) {
-        // Send updates for each completed task through WebSockets as well
         for (const task of results) {
+          // keys like 'status', 'task_id' rely on Service returning normalized lowercase keys
           if (task.status === "COMPLETE" && task.message_id) {
-            // Find message details in database
+            
+            // Update the task in DB (via Service)
             const taskData = await chatAiService.updateTaskStatus(
               task.task_id,
               "COMPLETE",
@@ -45,7 +54,7 @@ exports.checkTaskStatus = async (req, res, next) => {
             );
 
             if (taskData && taskData.chat_id) {
-              // Send WebSocket notification for this completed task
+              // Send WebSocket notification
               await sendResponse(
                 req.user.username || req.user.sub,
                 taskData.chat_id,
@@ -58,19 +67,13 @@ exports.checkTaskStatus = async (req, res, next) => {
                 }
               );
 
-              logger.info(
-                `WebSocket notification sent for fallback task: ${task.task_id}`
-              );
+              logger.info(`WebSocket notification sent for fallback task: ${task.task_id}`);
             }
           }
         }
       }
     } catch (socketError) {
-      // Don't fail the API response if WebSocket send fails
-      logger.error(
-        "Failed to send WebSocket updates for fallback tasks:",
-        socketError
-      );
+      logger.error("Failed to send WebSocket updates for fallback tasks:", socketError);
     }
 
     res.status(statusCodes.SUCCESS).json({
@@ -87,13 +90,10 @@ exports.checkTaskStatus = async (req, res, next) => {
 /**
  * Handles LLM callback updates and WebSocket notifications
  * Receives updated content and pushes to connected clients
- *
- * @param {Request} req - Express request object
- * @param {Response} res - Express response object
- * @param {Function} next - Express next middleware function
  */
 exports.handleAgentCallback = async (req, res, next) => {
   try {
+    setAwsJsonHeaders(res);
     const {
       chatai_message_id,
       message_type,
@@ -103,27 +103,22 @@ exports.handleAgentCallback = async (req, res, next) => {
     } = req.body;
     const files = req.files;
 
-    logger.info(
-      `Callback received for message ${chatai_message_id} with task_id ${
-        task_id || "none"
-      }`
-    );
+    logger.info(`Callback received for message ${chatai_message_id} with task_id ${task_id || "none"}`);
 
-    // Create chatAIMessageData object
     const chatAIMessageData = {
       chataiMessageId: chatai_message_id,
       messageType: message_type,
       answer: answer,
     };
 
-    // Call the LLM service to update the chatbot message
+    // Update message in Snowflake (via Service)
     const updatedMessage = await service.updateChatAIMessage(
       chatAIMessageData,
       files,
       { context: { user: req.user } }
     );
 
-    // Try to send update via WebSocket for real-time updates
+    // Real-time WebSocket update
     try {
       const sendResponse = getSendResponse();
 
@@ -136,24 +131,16 @@ exports.handleAgentCallback = async (req, res, next) => {
           },
         });
 
-        logger.info(
-          `WebSocket notification sent for callback: ${chatai_message_id}`
-        );
+        logger.info(`WebSocket notification sent for callback: ${chatai_message_id}`);
       }
 
-      // Update task status if we have a task_id
       if (task_id) {
         await chatAiService.updateTaskStatus(task_id, "COMPLETE", answer);
       }
     } catch (socketError) {
-      logger.error(
-        "Failed to send WebSocket update for callback:",
-        socketError
-      );
-      // Continue processing even if WebSocket send fails
+      logger.error("Failed to send WebSocket update for callback:", socketError);
     }
 
-    // Return success response
     res.status(statusCodes.SUCCESS).json({
       status: statusCodes.SUCCESS,
       message: "Message updated successfully",
@@ -161,7 +148,6 @@ exports.handleAgentCallback = async (req, res, next) => {
     });
   } catch (error) {
     logger.error("Error in handleAgentCallback:", error);
-    // Propagate the error to the centralized error handler
     next(error);
   }
 };

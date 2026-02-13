@@ -78,15 +78,48 @@
 
 // NEW CODE
 
-require("dotenv").config({ path: `${__dirname}/../../.env` });
-const { S3Client } = require("@aws-sdk/client-s3");
+// require("dotenv").config({ path: `${__dirname}/../../.env` });
+// const { S3Client } = require("@aws-sdk/client-s3");
 
-const { AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET_NAME } = process.env;
+// const { AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET_NAME } = process.env;
 
-// If using IAM Roles (e.g. on EC2/ECS), you might not need access keys here.
-// But for explicit config:
-if (!AWS_REGION || !S3_BUCKET_NAME) {
-  throw new Error("Missing AWS_REGION or S3_BUCKET_NAME in .env");
+// // If using IAM Roles (e.g. on EC2/ECS), you might not need access keys here.
+// // But for explicit config:
+// if (!AWS_REGION || !S3_BUCKET_NAME) {
+//   throw new Error("Missing AWS_REGION or S3_BUCKET_NAME in .env");
+// }
+
+// const s3Client = new S3Client({
+//   region: AWS_REGION,
+//   credentials: (AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) ? {
+//     accessKeyId: AWS_ACCESS_KEY_ID,
+//     secretAccessKey: AWS_SECRET_ACCESS_KEY,
+//   } : undefined, // Let SDK find credentials automatically if not provided
+// });
+
+// module.exports = {
+//   s3Client,
+//   bucketName: S3_BUCKET_NAME,
+//   AWS_REGION,
+// };
+
+// S3 New code
+const path = require("path");
+const { S3Client, ListObjectsV2Command } = require("@aws-sdk/client-s3");
+
+// FIX 1: Use process.cwd() to correctly find .env in the root folder
+require("dotenv").config({ path: path.resolve(process.cwd(), ".env") });
+
+const { 
+  AWS_ACCESS_KEY_ID, 
+  AWS_SECRET_ACCESS_KEY, 
+  AWS_REGION, 
+  AWS_S3_BUCKET_NAME // FIX 2: Matched to your .env file
+} = process.env;
+
+// Explicit check to prevent crashing later
+if (!AWS_REGION || !AWS_S3_BUCKET_NAME) {
+  throw new Error(`Missing config. Region: ${AWS_REGION}, Bucket: ${AWS_S3_BUCKET_NAME}`);
 }
 
 const s3Client = new S3Client({
@@ -94,11 +127,27 @@ const s3Client = new S3Client({
   credentials: (AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) ? {
     accessKeyId: AWS_ACCESS_KEY_ID,
     secretAccessKey: AWS_SECRET_ACCESS_KEY,
-  } : undefined, // Let SDK find credentials automatically if not provided
+  } : undefined,
 });
+
+// FIX 3: Immediate Connection Test (Runs once on startup)
+// This answers "How do I know if it is connected?"
+(async () => {
+  try {
+    if (process.env.USE_LOCAL_STORAGE !== "true") {
+      await s3Client.send(new ListObjectsV2Command({ 
+        Bucket: AWS_S3_BUCKET_NAME, 
+        MaxKeys: 1 
+      }));
+      console.log("✅ AWS S3 Connection Successful!");
+    }
+  } catch (err) {
+    console.error("❌ AWS S3 Connection Failed:", err.message);
+  }
+})();
 
 module.exports = {
   s3Client,
-  bucketName: S3_BUCKET_NAME,
+  bucketName: AWS_S3_BUCKET_NAME,
   AWS_REGION,
 };

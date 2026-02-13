@@ -6,7 +6,7 @@ const paginationRules = {
       options: { min: 1 },
       errorMessage: "page must be a positive integer",
     },
-    toInt: true, // Sanitize to integer
+    toInt: true, // Safe for page numbers
   },
   limit: {
     in: ["query"],
@@ -15,39 +15,41 @@ const paginationRules = {
       options: { min: 1, max: 100 },
       errorMessage: "limit must be a positive integer between 1 and 100",
     },
-    toInt: true, // Sanitize to integer
+    toInt: true, // Safe for limit
   },
 };
 
 module.exports = {
-  //GET by id validation rule
+  // GET by id validation rule
   get_id: {
     id: {
       in: ["params"],
       optional: true,
-      isInt: {
-        errorMessage: "id must be an integer",
+      // Change: Validate as numeric string (BigInt safe)
+      isNumeric: {
+        errorMessage: "id must be a numeric value",
       },
-      toInt: true,
+      // REMOVED: toInt: true
     },
   },
 
-  //Get all data validation rules
+  // Get all data validation rules
   get_all: {
-    ...paginationRules, // Include pagination rules
+    ...paginationRules,
   },
 
-  // // Create conversation validation rules
+  // Create conversation validation rules
   create: {
     conversation_id: {
       in: ["body"],
       notEmpty: {
         errorMessage: "conversation_id can not be empty",
       },
-      isInt: {
-        errorMessage: "conversation_id must be an integer",
+      // Change: Validate as numeric string
+      isNumeric: {
+        errorMessage: "conversation_id must be a numeric value",
       },
-      toInt: true, // Sanitize to integer
+      // REMOVED: toInt: true
     },
     message: {
       in: ["body"],
@@ -90,10 +92,11 @@ module.exports = {
   update: {
     id: {
       in: ["params"],
-      isInt: {
-        errorMessage: "id must be an integer",
+      // Change: Validate as numeric string
+      isNumeric: {
+        errorMessage: "id must be a numeric value",
       },
-      toInt: true, // Sanitize to integer
+      // REMOVED: toInt: true
     },
     message: {
       in: ["body"],
@@ -139,10 +142,11 @@ module.exports = {
   delete: {
     id: {
       in: ["params"],
-      isInt: {
-        errorMessage: "ID must be an integer",
+      // Change: Validate as numeric string
+      isNumeric: {
+        errorMessage: "ID must be a numeric value",
       },
-      toInt: true,
+      // REMOVED: toInt: true
     },
   },
-};
+};  

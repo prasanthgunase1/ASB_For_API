@@ -1,5 +1,4 @@
 // controllers/feedbackController.js
-
 const feedbackService = require('../services/feedbackService');
 const statusCodes = require('../utils/statusCodes');
 const { logger } = require("../utils/logger");
@@ -27,7 +26,9 @@ exports.updateFeedback = async (req, res, next) => {
       throw error;
     }
 
+    // Passes raw body to Service; Service must handle Snowflake DB updates
     const data = await feedbackService.addOrUpdateFeedback(id, req.body, req.user);
+    
     res.status(statusCodes.SUCCESS).json({
       status: statusCodes.SUCCESS,
       success: true,
@@ -60,6 +61,7 @@ exports.getFeedback = async (req, res, next) => {
       status: statusCodes.SUCCESS,
       success: true,
       message: "Data fetched successfully",
+      // Spread works safely even if data is null (results in empty object + messageId)
       data: { messageId: req.params.id, ...data },
     });
   } catch (error) {
@@ -68,34 +70,34 @@ exports.getFeedback = async (req, res, next) => {
 };
 
 exports.removeFeedback = async (req, res, next) => {
-    try {
-        await feedbackService.deleteFeedback(req.params.id, req.user);
-        res.status(statusCodes.SUCCESS).json({
-          status: statusCodes.SUCCESS,
-          success: true,
-          message: "Data deleted successfully",
-          data: {},
-        });
-    } catch (error) {
-        next(error);
-    }
+  try {
+    await feedbackService.deleteFeedback(req.params.id, req.user);
+    res.status(statusCodes.SUCCESS).json({
+      status: statusCodes.SUCCESS,
+      success: true,
+      message: "Data deleted successfully",
+      data: {},
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 exports.removeAllFeedbacks = async (req, res, next) => {
-    try {
-        const deletedCount = await feedbackService.deleteAllFeedbacks();
-        if (deletedCount === 0) {
-            const error = new Error("No feedback entries to delete");
-            error.statusCode = statusCodes.NOT_FOUND;
-            throw error;
-        }
-        res.status(statusCodes.SUCCESS).json({
-          status: statusCodes.SUCCESS,
-          success: true,
-          message: `Successfully deleted ${deletedCount} feedback entries.`,
-          data: { count: deletedCount },
-        });
-    } catch (error) {
-        next(error);
+  try {
+    const deletedCount = await feedbackService.deleteAllFeedbacks();
+    if (deletedCount === 0) {
+      const error = new Error("No feedback entries to delete");
+      error.statusCode = statusCodes.NOT_FOUND;
+      throw error;
     }
+    res.status(statusCodes.SUCCESS).json({
+      status: statusCodes.SUCCESS,
+      success: true,
+      message: `Successfully deleted ${deletedCount} feedback entries.`,
+      data: { count: deletedCount },
+    });
+  } catch (error) {
+    next(error);
+  }
 };

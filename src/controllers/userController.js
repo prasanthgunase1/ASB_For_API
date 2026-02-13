@@ -1,5 +1,17 @@
 const statusCodes = require("../utils/statusCodes");
-const db = require("../config/database");
+const { connectSnowflake } = require("../config/database");
+
+// Helper: Map Snowflake UPPERCASE columns to lowercase keys
+const mapToLowerCase = (rows) => {
+  if (!rows || !Array.isArray(rows)) return [];
+  return rows.map((row) => {
+    const newRow = {};
+    for (const key in row) {
+      newRow[key.toLowerCase()] = row[key];
+    }
+    return newRow;
+  });
+};
 
 exports.getUserData = async (req, res, next) => {
   try {
@@ -11,19 +23,45 @@ exports.getUserData = async (req, res, next) => {
       throw error;
     }
 
-    // Query using raw SQL since we're directly accessing the Users table
-    const userData = await db.query(
-      ` select distinct i.industry_id, i.industry_name,u.client_id, p.persona,p.persona_id,u.user_id,c.data_domain from [USR].[Persona] p 
-      join [USR].[UserAccess] u on p.persona_id = u.persona_id 
-      join [USR].[Users] us on us.user_id =u.user_id
-      JOIN [USR].[Industry] i on u.industry_id = i.industry_id
-      JOIN [USR].[Client] c on c.client_id=u.client_id
-      WHERE us.email = :email`,
-      {
-        replacements: { email },
-        type: db.QueryTypes.SELECT,
-      }
-    );
+    const conn = await connectSnowflake();
+
+    // Updated Query:
+    // 1. Removed [brackets]
+    // 2. Used SANDBOX_AI_BI.APP_SCHEMA prefix
+    // 3. Changed :email to ?
+    const query = `
+      SELECT DISTINCT 
+        i.INDUSTRY_ID, 
+        i.INDUSTRY_NAME,
+        u.CLIENT_ID, 
+        p.PERSONA,
+        p.PERSONA_ID,
+        u.USER_ID,
+        c.DATA_DOMAIN 
+      FROM SANDBOX_AI_BI.APP_SCHEMA.PERSONA p 
+      JOIN SANDBOX_AI_BI.APP_SCHEMA.USER_ACCESS u ON p.PERSONA_ID = u.PERSONA_ID 
+      JOIN SANDBOX_AI_BI.APP_SCHEMA.USERS us ON us.USER_ID = u.USER_ID
+      JOIN SANDBOX_AI_BI.APP_SCHEMA.INDUSTRY i ON u.INDUSTRY_ID = i.INDUSTRY_ID
+      JOIN SANDBOX_AI_BI.APP_SCHEMA.CLIENT c ON c.CLIENT_ID = u.CLIENT_ID
+      WHERE us.EMAIL = ?
+    `;
+
+    // Execute Snowflake Query
+    const rows = await new Promise((resolve, reject) => {
+      conn.execute({
+        sqlText: query,
+        binds: [email],
+        complete: (err, stmt, rows) => {
+          if (err) {
+            console.error("❌ Snowflake Error:", err.message);
+            return reject(err);
+          }
+          resolve(rows);
+        },
+      });
+    });
+
+    const userData = mapToLowerCase(rows);
 
     if (!userData || userData.length === 0) {
       const error = new Error("User not found");
@@ -50,6 +88,8 @@ exports.getLoggedInUserInfo = async (req, res, next) => {
       error.statusCode = statusCodes.UNAUTHORIZED;
       throw error;
     }
+    
+    // No DB call needed here, data comes from middleware token
     const userData = {
       username: req.user.name,
       userId: req.user.userId,
@@ -57,6 +97,7 @@ exports.getLoggedInUserInfo = async (req, res, next) => {
       image_url: req.user.image_url,
       // ... other user information
     };
+
     res.status(statusCodes.SUCCESS).json({
       status: statusCodes.SUCCESS,
       success: true,
@@ -64,7 +105,6 @@ exports.getLoggedInUserInfo = async (req, res, next) => {
       data: userData,
     });
   } catch (error) {
-    // Instead of logging here, just pass the error to the centralized error handler
     next(error);
   }
 };

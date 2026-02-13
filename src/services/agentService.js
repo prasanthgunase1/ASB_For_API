@@ -10,12 +10,32 @@ const {
 } = require("../services/socketService");
 
 /**
+ * Helper to safely stringify objects for Snowflake TEXT/VARIANT columns
+ */
+const safeStringify = (data) => {
+  if (typeof data === "object" && data !== null) {
+    return JSON.stringify(data);
+  }
+  return data;
+};
+
+/**
+ * Helper to safely parse JSON from Snowflake if returned as string
+ */
+const safeParse = (data) => {
+  if (typeof data === "string") {
+    try {
+      return JSON.parse(data);
+    } catch (e) {
+      return data; // Return original if not JSON
+    }
+  }
+  return data || {};
+};
+
+/**
  * WebSocket-first task status checker
  * Only used as fallback when WebSockets are unavailable
- *
- * @param {Array} tasks - Array of task objects with task_id and message_id
- * @param {Object} options - Additional options
- * @returns {Array} Status updates for each task
  */
 exports.checkTaskStatuses = async (tasks, options = {}) => {
   try {
@@ -30,20 +50,23 @@ exports.checkTaskStatuses = async (tasks, options = {}) => {
           });
           if (!res.ok) throw new Error(`Status ${res.status}`);
           const data = await res.json();
+          
+          // Snowflake: Stringify complex objects
           await repository.update(
             "message",
             task.message_id,
             {
               message: JSON.stringify(data),
-              metadata: {
+              metadata: safeStringify({
                 status: data.status,
                 agent_response: data,
                 checked_via: "api_fallback",
                 checked_at: new Date().toISOString(),
-              },
+              }),
             },
             options
           );
+
           return {
             task_id: task.task_id,
             message_id: task.message_id,
@@ -71,18 +94,12 @@ exports.checkTaskStatuses = async (tasks, options = {}) => {
 
 /**
  * Updates a chatbot message with direct-complete data
- *
- * @param {Object} chatAIMessageData
- * @param {Array} files
- * @param {Object} options
- * @returns {Object} Updated message
  */
 exports.updateChatAIMessage = async (
   chatAIMessageData,
   files = [],
   options = {}
 ) => {
-  // Fix property name - correctly use chatAIMessageId with uppercase "AI"
   const { chatAIMessageId, messageType, answer } = chatAIMessageData;
   try {
     const msg = await repository.findById("message", chatAIMessageId, options);
@@ -92,18 +109,27 @@ exports.updateChatAIMessage = async (
       throw e;
     }
 
-    const metadata = { ...msg.metadata };
+    // Snowflake: Handle potential string metadata
+    const existingMetadata = safeParse(msg.metadata);
+    
+    const metadata = { ...existingMetadata };
     metadata.status = process.env.CHATAI_STATUS_COMPLETED || "completed";
     metadata.agent_response = { message_id: chatAIMessageId, answer };
-    if (msg.metadata?.task_id) metadata.task_id = msg.metadata.task_id;
-    if (msg.metadata?.request_id) metadata.request_id = msg.metadata.request_id;
+    
+    if (existingMetadata.task_id) metadata.task_id = existingMetadata.task_id;
+    if (existingMetadata.request_id) metadata.request_id = existingMetadata.request_id;
+    
     metadata.updated_via = "agent_api_direct_complete";
     metadata.updated_at = new Date().toISOString();
 
     const updated = await repository.update(
       "message",
-      chatAIMessageId, // Updated to use correct property name
-      { message: answer, message_type: messageType, metadata },
+      chatAIMessageId,
+      { 
+        message: answer, 
+        message_type: messageType, 
+        metadata: safeStringify(metadata) // Stringify for Snowflake
+      },
       options
     );
 
@@ -115,11 +141,11 @@ exports.updateChatAIMessage = async (
           repository.create(
             "file",
             {
-              message_id: chatAIMessageId, // Updated to use correct property name
+              message_id: chatAIMessageId,
               user_id: options.context.user.username,
               file_name: files[i].originalname,
               file_url: f.fileUrl,
-              file_metadata: f.fileMetadata,
+              file_metadata: safeStringify(f.fileMetadata), // Stringify for Snowflake
               file_type: files[i].mimetype,
               file_size: files[i].size,
             },
@@ -129,14 +155,15 @@ exports.updateChatAIMessage = async (
       );
     }
 
+    // Snowflake: Return plain objects (no .toJSON())
     return {
-      ...(updated.toJSON ? updated.toJSON() : updated),
-      files: fileRecords.map((r) => r.toJSON()),
+      ...updated,
+      files: fileRecords,
     };
   } catch (err) {
     logger.error(`Error updating chat message: ${err.message}`, {
       error: err,
-      chatAIMessageId, // Updated to use correct property name for logging
+      chatAIMessageId,
     });
     throw err;
   }
@@ -160,53 +187,38 @@ const transformFiles = (files) => {
   if (!Array.isArray(files)) return [];
   return files.map((file) => {
     try {
-      // Extract the necessary parts from file metadata
-      const metadata =
-        typeof file.file_metadata === "string"
-          ? JSON.parse(file.file_metadata)
-          : file.file_metadata || {};
+      // Handle metadata parsing if string
+      const metadata = safeParse(file.file_metadata);
 
-      // Get simple file extension
       const fileExt =
         file.file_type?.split("/")?.pop() || getFileType(file.file_name || "");
 
-      // Format simple file type (pdf, pptx, etc.)
       const simpleFileType =
-        fileExt === "pdf"
-          ? "pdf"
-          : fileExt === "presentation"
-          ? "pptx"
-          : fileExt === "document"
-          ? "docx"
-          : fileExt === "sheet"
-          ? "xlsx"
+        fileExt === "pdf" ? "pdf"
+          : fileExt === "presentation" ? "pptx"
+          : fileExt === "document" ? "docx"
+          : fileExt === "sheet" ? "xlsx"
           : fileExt;
 
-      // Extract blob path directly from metadata
       let blobPath = "";
       if (metadata.file_path) {
-        // Remove container name prefix
         const cleanPath = metadata.file_path.replace(/^\/+/, "");
         if (cleanPath.startsWith("ai-for-insights/")) {
           blobPath = cleanPath.split("ai-for-insights/")[1];
         }
       } else if (file.blob_path) {
-        // Directly use provided blob_path if available
         blobPath = file.blob_path;
       }
 
-      // Extract the actual filename from the blob path
-      // This ensures file_name matches the last part of blob_path
       const actualFileName = blobPath.split("/").pop() || file.file_name || "";
 
       return {
-        file_name: actualFileName, // Use the actual filename from blob_path
+        file_name: actualFileName,
         upload_time: file.created_at || new Date().toISOString(),
         blob_path: blobPath,
         file_type: simpleFileType,
       };
     } catch (err) {
-      // Error handling
       logger.error(`Error transforming file ${file.id || ""}:`, err);
       return {
         file_name: file.file_name || "",
@@ -217,15 +229,9 @@ const transformFiles = (files) => {
     }
   });
 };
+
 /**
  * Calls Python LLM API and manages Redis Pub/Sub subscription
- *
- * @param {string} message
- * @param {string} chatAIMessageId
- * @param {Object} options
- * @param {Object} llmPayload
- * @param {string} task_id
- * @returns {Object}
  */
 exports.callAgentApi = async (
   message,
@@ -238,6 +244,7 @@ exports.callAgentApi = async (
     const endpoint = llmPayload.msg_id
       ? endpoints.chatAISelection
       : endpoints.chatAI;
+      
     const payload = llmPayload.msg_id
       ? llmPayload.msgPayload
       : {
@@ -261,9 +268,7 @@ exports.callAgentApi = async (
       payload.ques_id = String(chatAIMessageId);
     }
 
-    console.log("Payload:", payload);
-
-    // subscribe before HTTP call
+    // Subscribe Logic
     const subscribe = getSubscribeToRequestResults();
     if (typeof subscribe === "function" && chatAIMessageId && task_id) {
       try {
@@ -274,37 +279,35 @@ exports.callAgentApi = async (
           String(task_id)
         );
       } catch (subscribeError) {
-        logger.error(
-          `[AGENT DEBUG] Failed to subscribe: ${subscribeError.message}`
-        );
+        logger.error(`[AGENT DEBUG] Failed to subscribe: ${subscribeError.message}`);
       }
-    } else {
-      logger.warn(
-        `[AGENT DEBUG] Subscription skipped - subscribe: ${typeof subscribe}, chatAIMessageId: ${chatAIMessageId}, task_id: ${task_id}`
-      );
     }
 
-    logger.info(
-      `Sending request to ${endpoint} for message ${chatAIMessageId} (Task ${task_id})`
-    );
+    logger.info(`Sending request to ${endpoint} for message ${chatAIMessageId}`);
+    
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       timeout: 120000,
     });
+    
     if (!res.ok) {
       const errText = await res.text();
       throw new Error(`Status ${res.status}: ${errText}`);
     }
+    
     const text = await handleStreamingResponse(res);
     const parsed = JSON.parse(text);
     console.log("Response Received:", parsed);
 
     const status = parsed.status?.toUpperCase();
+    
+    // Async Processing Path
     if (status === "PROCESSING" || status === "QUEUED") {
       const orig = String(chatAIMessageId);
       const rid = parsed.request_id ? String(parsed.request_id) : orig;
+      
       if (rid !== orig) {
         const unsub = getUnsubscribeFromRequestResults();
         await unsub(orig);
@@ -314,23 +317,20 @@ exports.callAgentApi = async (
           options.context.user.username,
           String(task_id)
         );
-        logger.info(
-          `Resubscribed to new channel: request_results:${rid} (Task ${task_id})`
-        );
       }
+      
       await repository.update(
         "message",
         chatAIMessageId,
         {
-          message:
-            status === "PROCESSING"
+          message: status === "PROCESSING"
               ? ""
               : JSON.stringify({
                   status,
                   request_id: rid,
                   message: parsed.message,
                 }),
-          metadata: {
+          metadata: safeStringify({
             status,
             request_id: rid,
             original_message_id: chatAIMessageId,
@@ -338,11 +338,11 @@ exports.callAgentApi = async (
             updated_at: new Date().toISOString(),
             queued_at: new Date().toISOString(),
             api_response_on_call: parsed,
-          },
+          }),
         },
         options
       );
-      logger.info(`DB placeholder updated for ${chatAIMessageId} to ${status}`);
+      
       return {
         status: statusCodes.PROCESSING,
         data: {
@@ -355,13 +355,14 @@ exports.callAgentApi = async (
       };
     }
 
-    // direct sync completion
+    // Direct Completion Path
     const answer = typeof parsed === "string" ? parsed : JSON.stringify(parsed);
     const updatedMsg = await exports.updateChatAIMessage(
       { chatAIMessageId, messageType: "text", answer },
       parsed.files || [],
       options
     );
+    
     if (task_id) {
       try {
         await repository.update(
@@ -370,38 +371,42 @@ exports.callAgentApi = async (
           {
             status: "COMPLETE",
             result: answer,
-            updated_at: new Date(),
+            updated_at: new Date(), // Snowflake timestamp
           },
           {}
         );
-      } catch {}
+      } catch (e) {
+        logger.warn(`Failed to update task status: ${e.message}`);
+      }
     }
+    
     const unsub = getUnsubscribeFromRequestResults();
     await unsub(String(chatAIMessageId));
     if (parsed.request_id && parsed.request_id !== chatAIMessageId) {
       await unsub(String(parsed.request_id));
     }
-    logger.info(`Unsubscribed after direct completion for ${chatAIMessageId}`);
+    
     return { status: statusCodes.SUCCESS, data: updatedMsg };
+    
   } catch (err) {
-    logger.error(`callAgentApi error for ${chatAIMessageId}: ${err.message}`, {
-      error: err,
-    });
+    logger.error(`callAgentApi error for ${chatAIMessageId}: ${err.message}`, { error: err });
+    
     try {
       await repository.update(
         "message",
         chatAIMessageId,
         {
           message: JSON.stringify({ status: "ERROR", error: err.message }),
-          metadata: {
+          metadata: safeStringify({
             status: "ERROR",
             task_id,
             error_details: err.message,
             updated_at: new Date().toISOString(),
-          },
+          }),
         },
         options
       );
+      
       if (task_id) {
         await repository.update(
           "task",
@@ -414,26 +419,23 @@ exports.callAgentApi = async (
           {}
         );
       }
-    } catch {}
+    } catch (e) { /* ignore cleanup error */ }
+    
     throw err;
   }
 };
 
 /**
  * Calls dashboard API for home screen data
- *
- * @param {Object} inputParams
- * @returns {Object}
  */
 exports.callDashboardAPI = async (inputParams) => {
   try {
-    logger.info(
-      `Calling dashboard API with params: ${JSON.stringify(inputParams)}`
-    );
+    logger.info(`Calling dashboard API with params: ${JSON.stringify(inputParams)}`);
     const requestBody = JSON.stringify({
       persona_id: Number(inputParams.persona_id),
       user_id: String(inputParams.user_id),
     });
+    
     const res = await fetch(endpoints.homeDashboardAPI, {
       method: "POST",
       headers: {
@@ -443,10 +445,12 @@ exports.callDashboardAPI = async (inputParams) => {
       body: requestBody,
       timeout: 60000,
     });
+    
     if (!res.ok) {
       const body = await res.text();
       throw new Error(`Status ${res.status}: ${body}`);
     }
+    
     const text = await handleStreamingResponse(res);
     return JSON.parse(text);
   } catch (err) {

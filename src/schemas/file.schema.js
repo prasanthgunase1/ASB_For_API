@@ -6,7 +6,7 @@ const paginationRules = {
       options: { min: 1 },
       errorMessage: "page must be a positive integer",
     },
-    toInt: true, // Sanitize to integer
+    toInt: true, // Safe for page numbers
   },
   limit: {
     in: ["query"],
@@ -15,26 +15,27 @@ const paginationRules = {
       options: { min: 1, max: 100 },
       errorMessage: "limit must be a positive integer between 1 and 100",
     },
-    toInt: true, // Sanitize to integer
+    toInt: true, // Safe for limit
   },
 };
 
 module.exports = {
-  //GET by id validation rule
+  // GET by id validation rule
   get_id: {
     id: {
       in: ["params"],
       optional: true,
-      isInt: {
-        errorMessage: "id must be an integer",
+      // Change: Validate as numeric string (BigInt safe)
+      isNumeric: {
+        errorMessage: "id must be a numeric value",
       },
-      toInt: true,
+      // REMOVED: toInt: true
     },
   },
 
-  //Get all data validation rules
+  // Get all data validation rules
   get_all: {
-    ...paginationRules, // Include pagination rules
+    ...paginationRules,
   },
 
   // Create file validation rules
@@ -44,10 +45,11 @@ module.exports = {
       notEmpty: {
         errorMessage: "message_id is required",
       },
-      isInt: {
-        errorMessage: "message_id must be an integer",
+      // Change: Validate as numeric string (BigInt safe)
+      isNumeric: {
+        errorMessage: "message_id must be a numeric value",
       },
-      toInt: true, // Sanitize to integer
+      // REMOVED: toInt: true
     },
     user_id: {
       in: ["body"],
@@ -82,7 +84,7 @@ module.exports = {
       isInt: {
         errorMessage: "file_size must be an integer",
       },
-      toInt: true, // Sanitize to integer
+      toInt: true, // Safe: File sizes fit in JS Numbers (up to 9 Petabytes)
     },
     file_type: {
       in: ["body"],
@@ -100,28 +102,30 @@ module.exports = {
   update: {
     id: {
       in: ["params"],
-      isInt: {
-        errorMessage: "id must be an integer",
+      // Change: Validate as numeric string
+      isNumeric: {
+        errorMessage: "id must be a numeric value",
       },
-      toInt: true, // Sanitize to integer
+      // REMOVED: toInt: true
     },
     user_id: {
-        in: ["body"],
-        optional: true,
-        notEmpty: {
-          errorMessage: "user_id is required",
-        },
-        isString: {
-          errorMessage: "user_id must be a string",
-        },
+      in: ["body"],
+      optional: true,
+      notEmpty: {
+        errorMessage: "user_id is required",
+      },
+      isString: {
+        errorMessage: "user_id must be a string",
+      },
     },
     message_id: {
       in: ["body"],
       optional: true,
-      isInt: {
-        errorMessage: "message_id must be an integer",
+      // Change: Validate as numeric string
+      isNumeric: {
+        errorMessage: "message_id must be a numeric value",
       },
-      toInt: true, // Sanitize to integer
+      // REMOVED: toInt: true
     },
     file_size: {
       in: ["body"],
@@ -129,7 +133,7 @@ module.exports = {
       isInt: {
         errorMessage: "file_size must be an integer",
       },
-      toInt: true, // Sanitize to integer
+      toInt: true, // Safe
     },
     file_url: {
       in: ["body"],
@@ -159,10 +163,11 @@ module.exports = {
   delete: {
     id: {
       in: ["params"],
-      isInt: {
-        errorMessage: "id must be an integer",
+      // Change: Validate as numeric string
+      isNumeric: {
+        errorMessage: "id must be a numeric value",
       },
-      toInt: true,
+      // REMOVED: toInt: true
     },
   },
 };

@@ -5,7 +5,7 @@ const { logger } = require("../utils/logger");
 const { handleJobCompletion } = require("../utils/jobCompletionHandler");
 
 // Global queue instances (BullMQ automatically manages Redis sync)
-const queueName = "agent-task-queue";
+const queueName = "{agent-task-queue}";
 const agentQ = new Queue(queueName, {
   connection: createBullMQConnection(),
 });
